@@ -11,16 +11,19 @@ require File.join(File.dirname(__FILE__), 'generalMethods.rb')
 
 
 def predict_patient(prediction_file, training_set, thresold)
+  #training_set = {chr => [start, stop, nodeID, hpo, association_value]}
 	File.open(prediction_file).each do |line|
 		line.chomp!
 		fields = line.split("\t")
-		chr = fields.shift
-		pt_start = fields.shift.to_i
-		pt_stop = fields.shift.to_i
-    #associationValue = fields[1]
-		#next if associationValue < thresold
+		association_score = fields.pop
+    next if association_score < thresold
+    chr = fields.shift
+    pt_start = fields.shift.to_i
+    pt_stop = fields.shift.to_i
+    nodeID = fields.shift
+    hpo_code = fiels.shift
     query = training_set[chr]
-		puts training_set.inspect
+		#puts training_set.inspect
     if !query.nil?
 			query.each do |hpo_start, hpo_stop, hpo_code, association_score|
 				if (hpo_stop > pt_start && hpo_stop <= pt_stop) ||
