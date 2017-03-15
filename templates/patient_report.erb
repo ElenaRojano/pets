@@ -1,0 +1,100 @@
+<%
+	def get_hpo_link(hpo_code)
+		if hpo_code == '-'
+			link = '-'
+		else
+			link = "<a href=\"http://compbio.charite.de/hpoweb/showterm?id=#{hpo_code}\">#{hpo_code}</a>"
+		end
+		return link
+	end
+
+	def red_text(text)
+		return "<font color=\"red\">#{text}</font>"
+	end
+%>
+
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+<h1 style="text-align: center; background-color:#d6eaf8">Input HPO quality control</h1>
+<p>HPO terms with CI values less than <b>1</b> are marked in red, and they do not give much information to our system. Please, if possible, select more specific HPO terms suggested in <b>Possible child HPO terms column </b>. </p>
+
+	<%= table(id: :characterised_hpos, header: true, border: 2, 
+		cell_align: %w(left center center center center left)) do |data|
+		data.each do |row|
+			row.each_with_index do |cell, i|
+				if i == 1
+					row[i] = get_hpo_link(cell)
+				elsif i == 4
+					row[i] = cell.map{|h,n| [get_hpo_link(h), n].compact}.join(', ')	
+				elsif i == 5
+					row[i] = cell.map{|r| "#{get_hpo_link(r.first)} (#{r.last})"}.join(', ')
+				elsif i == 3
+					ci = cell.to_f
+					if ci <= 1
+						text = red_text(ci.round(2))
+					else
+						text = ci.round(2)
+					end
+					row[i] = text
+				elsif i == 2
+					if cell == 'no'
+						row[i] = red_text(cell)
+					end
+				end
+			end
+		end
+		data.unshift(["HPO name", "HPO code", "Exists in database?", "Information Coefficient (CI)", "Is child of", "Possible child HPO terms"])
+		end
+	%>
+
+<h1 style="text-align: center; background-color:#d6eaf8">Regions associated to HPO profile</h1>
+<h2 style="text-align: center; background-color:#d6eaf8">General representation</h2>
+<div style="overflow: hidden;">
+<%=
+	circular_data = []
+	@hash_vars[:merged_regions].sort{|reg1, reg2| [reg1[0].to_i, reg1[1].to_i] <=> [reg2[0].to_i, reg2[1].to_i]}.each do |row|
+		#TODO if chr were x or y, change them to 23 and 24 and, when print, use x and y again
+		circular_data_row = []
+		circular_data_row << "#{row[1]}-#{row[2]}"
+		circular_data_row << row[5]
+		circular_data_row << row[0]
+		circular_data << circular_data_row
+	end
+	circular_data.unshift(%w[Coords P-value Chr])
+	@hash_vars[:circular_data] = circular_data
+	circular(
+		id: :circular_data, 
+		header: true,
+		row_names: true,
+		responsive: false,
+		sample_attributes: {'Chr' => 2},
+		config:{
+	#		'smpLabelOrientation' => 'circular',
+			'smpOverlays' => ['Chr'],
+			'colorSpectrum' => ["#d73027", "#fc8d59", "#fee090", "#ffffbf", "#e0f3f8", "#91bfdb", "#4575b4"],
+	#		'segregateSamplesBy' => ['Chr']
+			}
+		) do |data|
+			data.pop #Discard chromosome data
+		end
+%>
+</div>
+<h2 style="text-align: center; background-color:#d6eaf8">Ranked regions associated to HPO profile</h2>
+<p>The following table shows all associated genomic regions with a signficant combined p-value, minor than <b>0.1</b>.</p>
+	<%= table(id: :merged_regions, header: true, border: 2, 
+		cell_align: %w(center center center left center center)) do |data|
+		hpo_metadata = @hash_vars[:hpo_metadata]
+		data.each do |row|
+			row.each_with_index do |cell, i|
+				if i == 3
+					row[i] = cell.map{|h| "#{get_hpo_link(h)}: #{hpo_metadata[h].first}"}.join("\n<br>")
+				elsif i == 4
+					row[i] = cell.map{|a| a.to_f.round(2)}.join("\n<br>")
+				end
+			end
+		end
+		data.unshift(["Chromosome", "Start", "Stop", "Associated HPOs", "Association values<br>(For each HPO)", "Combined P-value"])
+		end
+	%>
+
+</div>

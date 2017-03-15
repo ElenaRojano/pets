@@ -6,7 +6,14 @@
 #training_file.txt = file with training data (association values and hpo codes).
 require 'optparse'
 require 'statistics2'
+require 'terminal-table'
+require 'report_html'
 require File.join(File.dirname(__FILE__), '..', 'lib', 'gephepred', 'generalMethods.rb')
+
+##########################
+#REPORTING
+##########################
+REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 
 ##########################
 #METHODS
@@ -178,7 +185,7 @@ def generate_hpo_region_matrix(merged_regions, info2predict)
 	return hpo_region_matrix
 end
 
-def ranking_regions(merged_regions, hpo_region_matrix, ranking_style)
+def ranking_regions(merged_regions, hpo_region_matrix, ranking_style, pvalue_cutoff)
 	#merged_regions = [[chr, start, stop, [hpos_list], [weighted_association_scores]]]
 	#hpo_region_matrix = [[0, 0.4, 0, 0.4], [0, 0, 0.5, 0.4]]
 	hpo_region_matrix.each_with_index do |associations, i|
@@ -195,8 +202,13 @@ def ranking_regions(merged_regions, hpo_region_matrix, ranking_style)
 			abort("Invalid ranking method: #{ranking_style}")
 		end
 	end
-	merged_regions.sort!{|r1, r2| r2.last <=> r1.last} if ranking_style == 'mean'
-	merged_regions.sort!{|r1, r2| r1.last <=> r2.last} if ranking_style == 'fisher'
+	if ranking_style == 'mean'
+		merged_regions.sort!{|r1, r2| r2.last <=> r1.last}
+		merged_regions.select!{|a| a.last >= pvalue_cutoff}
+	elsif ranking_style == 'fisher'
+		merged_regions.sort!{|r1, r2| r1.last <=> r2.last}
+		merged_regions.select!{|a| a.last <= pvalue_cutoff}
+	end
 	#Combined p-value: less value equals better association, not due randomly.
 end
 
@@ -204,8 +216,8 @@ def hpo_quality_control(prediction_data, hpo_metadata_file, information_coeffici
 	characterised_hpos = []
 	#information_coef_file= hpo_code, ci
 	#prediction_data = [hpo1, hpo2, hpo3...]
-	#generar tabla: fenotipo, existe? (sí/no), CI, parents, is_child_of
 	hpo_metadata = load_hpo_metadata(hpo_metadata_file)
+	hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
 	#hpo_metadata = {hpo_code => [phenotype, relations]}, relations = [hpo_code_relation, name_relation]
 	hpos_ci_values = {}
 	File.open(information_coefficient_file).each do |line|
@@ -217,18 +229,52 @@ def hpo_quality_control(prediction_data, hpo_metadata_file, information_coeffici
 		tmp = []
 		ci = hpos_ci_values[hpo_code]
 		hpo_name, relations = hpo_metadata[hpo_code]
-		tmp << hpo_name
-		unless ci.nil?
+		tmp << hpo_name # col hpo name
+		tmp << hpo_code # col hpo code
+		unless ci.nil? # col exists? and ci values
 			tmp << "yes"
-			tmp << ci 
+			tmp << ci
 		else
 			tmp << "no"
 			tmp << "-"
 		end
-		tmp << relations.join(', ')
+		parent = check_parents(relations, prediction_data, hpo_metadata)		
+		parent << "-" if parent.empty?
+		tmp << parent # col parents
+		childs = hpo_child_metadata[hpo_code]
+		if childs.nil?
+			childs = []
+		else
+			childs = childs.last
+		end
+		tmp << childs
 		characterised_hpos << tmp
 	end
-	return characterised_hpos
+	return characterised_hpos, hpo_metadata
+end
+
+def check_parents(relations, prediction_data, hpo_metadata)
+	parent = []
+	relations.each do |par_hpo_code, par_hpo_name|
+		if prediction_data.include?(par_hpo_code)
+			parent << [par_hpo_code, par_hpo_name]
+		end
+		grand_par_hpo = hpo_metadata[par_hpo_code]
+		if !grand_par_hpo.nil?
+			parent.concat(check_parents(grand_par_hpo.last, prediction_data, hpo_metadata))
+		end
+	end
+	return parent
+end
+
+def report_data(characterised_hpos, merged_regions, html_file, hpo_metadata)
+	container = {:characterised_hpos => characterised_hpos,
+	 	:merged_regions => merged_regions,
+	 	:hpo_metadata => hpo_metadata}
+	template = File.open(File.join(REPORT_FOLDER, 'patient_report.erb')).read
+	report = Report_html.new(container, 'Patient HPO profile summary')
+	report.build(template)
+	report.write(html_file)
 end
 ##########################
 #OPT-PARSER
@@ -265,8 +311,13 @@ OptionParser.new do |opts|
   end
 
   options[:best_thresold] = 1.5
-  opts.on("-b", "--best_thresold INTEGER", "Association value thresold") do |best_thresold|
+  opts.on("-b", "--best_thresold FLOAT", "Association value thresold") do |best_thresold|
     options[:best_thresold] = best_thresold.to_f
+  end
+
+  options[:pvalue_cutoff] = 0.1
+  opts.on("-P", "--pvalue_cutoff FLOAT", "P-value cutoff") do |pvalue_cutoff|
+    options[:pvalue_cutoff] = pvalue_cutoff.to_f
   end
 
   options[:merge_regions] = FALSE
@@ -304,6 +355,15 @@ OptionParser.new do |opts|
     options[:information_coefficient] = information_coefficient
   end
 
+  options[:output_quality_control] = "output_quality_control.txt"
+  opts.on("-O", "--output_quality_control PATH", "Output file with quality control of all input HPOs") do |output_quality_control|
+    options[:output_quality_control] = output_quality_control
+  end
+
+  options[:html_file] = "patient_profile_report.html"
+  opts.on("-F", "--html_file PATH", "HTML file with patient information HPO profile summary") do |html_file|
+    options[:html_file] = html_file
+  end
 
 end.parse!
 
@@ -324,16 +384,17 @@ end
 
 #HPO quality control
 #---------------------------
-characterised_hpos = hpo_quality_control(options[:prediction_data], options[:hpo2name_file], options[:information_coefficient])
-characterised_hpos.each do |hpo_metadata|
-	puts hpo_metadata.inspect
-end
-
+characterised_hpos, hpo_metadata = hpo_quality_control(options[:prediction_data], options[:hpo2name_file], options[:information_coefficient])
+output_quality_control = File.open(options[:output_quality_control], "w")
+header = ["HPO name", "HPO code", "Exists?", "CI value", "Is child of", "Childs"]
+output_quality_control.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
+output_quality_control.close
 
 #Prediction steps
 #---------------------------
 trainingData = load_training_file4HPO(options[:training_file], options[:best_thresold])
 hpo_regions = search4HPO(options[:prediction_data], trainingData)
+adjacent_regions_joined = []
 if hpo_regions.empty?
 	puts "Results not found"
 elsif options[:group_by_region] == FALSE
@@ -360,9 +421,13 @@ elsif options[:group_by_region] == TRUE
 			output_matrix.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
 		end
 		output_matrix.close
-		ranking_regions(adjacent_regions_joined, hpo_region_matrix, options[:ranking_style])
+		ranking_regions(adjacent_regions_joined, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff])
 		adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_score, association_mean|
 			puts "#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_score.join(',')}\t#{association_mean}"
 		end
 	end
 end
+
+#Creating html report
+#-------------------
+report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_metadata)
