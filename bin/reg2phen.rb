@@ -3,7 +3,7 @@
 #data2predict = file to predict
 #training_file.txt = file with training data (association values and hpo codes).
 require 'optparse'
-require File.join(File.dirname(__FILE__), 'generalMethods.rb')
+require File.join(File.dirname(__FILE__), '..', 'lib', 'gephepred', 'generalMethods.rb')
 
 ##########################
 #METHODS

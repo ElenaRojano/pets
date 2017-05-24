@@ -31,7 +31,7 @@ def search4HPO(info2predict, trainingData)
 end
 
 def group_by_region(hpo_regions)
-	#puts hpo_regions.inspect # hpo=> [[chr, start, stop, nodo, assoc], [...]]
+	#puts hpo_regions.inspect # hpo=> [[chr, start, stop, regID, score], [...]]
 	region2hpo = {}
 	regionAttributes = {}
 	association_scores = {}
@@ -91,6 +91,24 @@ def cluster_regions_by_common_hpos(arr_region2hpo)
 	return regions_by_hpos
 end
 
+def prepare_regions_for_profile_analysis(region2hpo, regionAttributes, association_scores, weight_style)
+	# region2hpo = {region => [hpo1, hpo2...]}
+	# regionAttributes = {region => [chr, start, stop, patients_number, region_length, region]}
+	merged_regions = []
+	arr_region2hpo = sorting_regions_by_shared_hpos(region2hpo)
+	regions_by_hpos = cluster_regions_by_common_hpos(arr_region2hpo)
+	regions_by_hpos.each do |hpos_list, regions|
+		regionIDs = []
+		regions_lengths = []
+		patients_numbers = []
+		region_attributes = regions.map { |region| regionAttributes[region] }
+		region_attributes.each do |attributes|
+			cur_chr, cur_start, cur_stop, cur_patients_number, cur_region_length, cur_regionID = attributes
+			add_region(merged_regions, cur_chr, cur_start, cur_stop, hpos_list, [cur_regionID], association_scores, [cur_region_length], [cur_patients_number], weight_style)
+		end
+	end	
+	return merged_regions
+end
 
 def merge_regions(region2hpo, regionAttributes, association_scores, weight_style)
 	# region2hpo = {region => [hpo1, hpo2...]}
@@ -149,15 +167,20 @@ def add_region(merged_regions, tmp_chr, tmp_start, tmp_stop, hpos_list, regionID
 			scores = association_values_by_region.map{|hpo_scores| hpo_scores[hpo] }
 			weighted_score = 0
 			weight = 0
-			scores.each_with_index do |s, i|
-				if weight_style == 'double'
-					weighted_score += s * region_lengths[i] * patients_numbers[i]
-					weight += region_lengths[i] * patients_numbers[i]
-				elsif weight_style == 'simple'
-					weighted_score += s * region_lengths[i]
-					weight += region_lengths[i]
-				else
-					abort("Invalid weight method: #{weight_style}")
+			if scores.length == 1
+				weighted_score = scores.first
+				weight = 1
+			else
+				scores.each_with_index do |s, i|
+					if weight_style == 'double'
+						weighted_score += s * region_lengths[i] * patients_numbers[i]
+						weight += region_lengths[i] * patients_numbers[i]
+					elsif weight_style == 'simple'
+						weighted_score += s * region_lengths[i]
+						weight += region_lengths[i]
+					else
+						abort("Invalid weight method: #{weight_style}")
+					end
 				end
 			end
 			weighted_association_scores << weighted_score/weight			
@@ -196,7 +219,9 @@ def ranking_regions(merged_regions, hpo_region_matrix, ranking_style, pvalue_cut
 			#https://en.wikipedia.org/wiki/Fisher%27s_method
 			lns = associations.map{|a| Math.log(Math::E ** -a)}	
 			sum = lns.inject(0){|s, a| s + a} 
-			combined_pvalue = Statistics2.chi2_x(lns.length * 2, -2 * sum)
+			combined_pvalue = Statistics2.chi2_x(lns.count{|s| s > 0} * 2, -2 * sum)
+			#changing FD calculation
+			#combined_pvalue = Statistics2.chi2_x(lns.length * 2, -2 * sum)
 			merged_regions[i] << combined_pvalue
 		else 
 			abort("Invalid ranking method: #{ranking_style}")
@@ -305,9 +330,9 @@ OptionParser.new do |opts|
     end
   end
 
-  options[:group_by_region] = FALSE
-  opts.on("-s", "--group_by_region", "Predict which HPOs are located in the same region") do
-  	options[:group_by_region] = TRUE
+  options[:group_by_region] = TRUE
+  opts.on("-S", "--group_by_region", "Disable prediction which HPOs are located in the same region") do
+  	options[:group_by_region] = FALSE
   end
 
   options[:best_thresold] = 1.5
@@ -406,25 +431,22 @@ elsif options[:group_by_region] == FALSE
 elsif options[:group_by_region] == TRUE
 	region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
 	if options[:merge_regions] == FALSE
-		# region2regions = {hpo => [[chr, start, stop, assocval],[...]]}
-		region2hpo.each do |region, hpoCodes|
-			puts "#{region}\t#{hpoCodes.join(",")}"
-		end
+		adjacent_regions_joined = prepare_regions_for_profile_analysis(region2hpo, regionAttributes, association_scores, options[:weight_style])
 	elsif options[:merge_regions] == TRUE
 		adjacent_regions_joined = merge_regions(region2hpo, regionAttributes, association_scores, options[:weight_style])
-		hpo_region_matrix = generate_hpo_region_matrix(adjacent_regions_joined, options[:prediction_data])
-		output_matrix = File.open(options[:output_matrix], "w")
-		headers = options[:prediction_data]
-		output_matrix.puts "Region\t#{headers.join("\t")}"
-		hpo_region_matrix.each_with_index do |association_values, i|
-			chr, start, stop, hpo_list, association_scores = adjacent_regions_joined[i]
-			output_matrix.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
-		end
-		output_matrix.close
-		ranking_regions(adjacent_regions_joined, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff])
-		adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_score, association_mean|
-			puts "#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_score.join(',')}\t#{association_mean}"
-		end
+	end
+	hpo_region_matrix = generate_hpo_region_matrix(adjacent_regions_joined, options[:prediction_data])
+	output_matrix = File.open(options[:output_matrix], "w")
+	headers = options[:prediction_data]
+	output_matrix.puts "Region\t#{headers.join("\t")}"
+	hpo_region_matrix.each_with_index do |association_values, i|
+		chr, start, stop, hpo_list, association_scores = adjacent_regions_joined[i]
+		output_matrix.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
+	end
+	output_matrix.close
+	ranking_regions(adjacent_regions_joined, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff])
+	adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_score, association_mean|
+		puts "#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_score.join(',')}\t#{association_mean}"
 	end
 end
 
