@@ -11,8 +11,55 @@
 	def red_text(text)
 		return "<font color=\"red\">#{text}</font>"
 	end
+
+	def add_tip(text, help_text)
+		return "<div class=\"tooltip\">#{text}<span class=\"tooltiptext\">#{help_text}</span></div>"
+	end
+
 %>
 
+<div class="chunk">
+	<style type="text/css" scoped>	
+	.tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted black;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 1s;
+}
+
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+	</style>
+</div>
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 <h1 style="text-align: center; background-color:#d6eaf8">Input HPO quality control</h1>
@@ -43,7 +90,7 @@
 				end
 			end
 		end
-		data.unshift(["HPO name", "HPO code", "Exists in database?", "Information Coefficient (CI)", "Is child of", "Possible child HPO terms"])
+		data.unshift([add_tip("HPO name", "Name of the HPO"), "HPO code", "Exists in database?", "Information Coefficient (CI)", "Is child of", "Possible child HPO terms"])
 		end
 	%>
 
