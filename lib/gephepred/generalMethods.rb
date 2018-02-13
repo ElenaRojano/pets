@@ -57,6 +57,7 @@ end
 
 def load_hpo_dictionary_name2code(hpo_file)
 	storage = {}
+	#STDERR.puts hpo_file.inspect
 	File.open(hpo_file).each do |line|
 		line.chomp!
 		fields = line.split("\t")
@@ -108,4 +109,14 @@ def inverse_hpo_metadata(hpo_metadata)
 		end
 	end
 	return storage_child
+end
+
+def load_hpo_ci_values(information_coefficient_file)
+	hpos_ci_values = {}
+	File.open(information_coefficient_file).each do |line|
+		line.chomp!
+		hpo_code, ci = line.split("\t")
+		hpos_ci_values[hpo_code] = ci.to_f
+	end
+	return hpos_ci_values
 end

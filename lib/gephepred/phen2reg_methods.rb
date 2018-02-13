@@ -109,19 +109,26 @@ def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_
 				median_association = associations.sort[median_value.ceil]
 			end
 			regionAttributes_array[i] << median_association
+		elsif scoring_system == 'maxnum'
+			max_association = associations.max
+			regionAttributes_array[i] << max_association
+		elsif scoring_system == 'minnum'
+			min_association = associations.min
+			regionAttributes_array[i] << min_association
 		else 
 			abort("Invalid ranking method: #{ranking_style}")
 		end
 	end
-	if scoring_system == 'mean'
+	if scoring_system == 'mean' || 
+		scoring_system == 'geommean' ||
+		scoring_system == 'maxnum' ||
+		scoring_system == 'minnum'
 		regionAttributes.select!{|regionID, attributes| attributes.last >= pvalue_cutoff}
 	elsif scoring_system == 'fisher'
 		regionAttributes.select!{|regionID, attributes| attributes.last <= pvalue_cutoff}
-	elsif scoring_system == 'geommean'
-		regionAttributes.select!{|regionID, attributes| attributes.last >= pvalue_cutoff}
 	end
 	
-	#Combined p-value: less value equals better association, not due randomly.
+	#Combined p-value: less value equals better association -> not due randomly.
 end
 
 # def hpo_quality_control(prediction_data, hpo_metadata_file, information_coefficient_file)
