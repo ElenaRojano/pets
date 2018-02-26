@@ -53,6 +53,11 @@ OptionParser.new do |opts|
     options[:print_matrix] = TRUE
   end
 
+  options[:max_number] = 10
+  opts.on("-M", "--max_number INTEGER", "Max number of regions to take into account") do |max_number|
+    options[:max_number] = max_number.to_i
+  end
+
   options[:hpo_is_name] = FALSE
     opts.on("-n", "--hpo_is_name", "Set this flag if phenotypes are given as names instead of codes") do
   options[:hpo_is_name] = TRUE
@@ -149,6 +154,7 @@ end
 
 if options[:quality_control]
   hpo_metadata = load_hpo_metadata(options[:hpo2name_file])
+  #STDERR.puts hpo_metadata.inspect
   hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
   hpos_ci_values = load_hpo_ci_values(options[:information_coefficient])
 end
@@ -164,7 +170,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     patient_hpo_profile.each_with_index do |name, i|
       hpo_code = hpo_dictionary[name]
       if hpo_code.nil?
-        STDERR.puts "Warning! Invalid HPO name: #{name}"
+        #STDERR.puts "Warning! Invalid HPO name: #{name}"
         hpo_code = nil
       end
       patient_hpo_profile[i] = hpo_code
@@ -175,7 +181,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   #HPO quality control
   #---------------------------
   characterised_hpos = []
-  hpo_metadata = []
+  #hpo_metadata = []
   if options[:quality_control]
     #characterised_hpos, hpo_metadata = hpo_quality_control(options[:prediction_data], options[:hpo2name_file], options[:information_coefficient])
     characterised_hpos, hpo_metadata = hpo_quality_control(patient_hpo_profile, hpo_metadata, hpo_child_metadata, hpos_ci_values)
@@ -198,7 +204,6 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   elsif options[:group_by_region] == TRUE
   	region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
   	hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile)
-
     if options[:print_matrix]
       output_matrix = File.open(options[:output_matrix] + "_#{patient_number}", "w")
       output_matrix.puts "Region\t#{patient_hpo_profile.join("\t")}"
@@ -218,7 +223,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       association_values = association_scores[regionID]
       adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
     end
-
+    
     #Ranking
     if options[:ranking_style] == 'mean'
       adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
@@ -228,9 +233,10 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
     end
 
-  	adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
+    adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
+    adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
       puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
-  	end
+	  end
   end
 
 
