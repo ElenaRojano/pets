@@ -42,11 +42,6 @@ OptionParser.new do |opts|
   opts.on("-i", "--information_coefficient PATH", "Input file with information coefficients") do |information_coefficient|
     options[:information_coefficient] = information_coefficient
   end
-  
-  options[:join_regions] = FALSE
-    opts.on("-j", "--join_regions", "Join coordinates by borders, if they share the same HPOs") do
-  options[:join_regions] = TRUE
-  end
 
   options[:print_matrix] = FALSE
   opts.on('-m', "--print_matrix", "Print output matrix") do 
@@ -94,6 +89,12 @@ OptionParser.new do |opts|
     options[:ranking_style] = ranking_style
   end
 
+  options[:recovery_percentage] = 'output_profile_recovery.txt'
+  opts.on("-R", "--recovery_percentage PATH", "HPO profile recovery percentage by patient") do |recovery_percentage|
+    options[:recovery_percentage] = recovery_percentage
+  end
+
+
   options[:group_by_region] = TRUE
   opts.on("-S", "--group_by_region", "Disable prediction which HPOs are located in the same region") do
     options[:group_by_region] = FALSE
@@ -113,11 +114,6 @@ OptionParser.new do |opts|
   options[:multiple_profile] = FALSE
     opts.on("-u", "--multiple_profile", "Set if multiple profiles") do
   options[:multiple_profile] = TRUE
-  end
-
-  options[:weight_style] = ''
-  opts.on("-w", "--weight_style STRING", "Weight style: simple (regions length) or double weight (regions length and patients number") do |weight_style|
-    options[:weight_style] = weight_style
   end
 
 end.parse!
@@ -146,7 +142,6 @@ else
     options[:prediction_data] = options[:prediction_data].split('!').map{|profile| profile.split('|')}
   end
 end
-
 
 ##########################
 #- Loading data
@@ -203,7 +198,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   	end
   elsif options[:group_by_region] == TRUE
   	region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
-  	hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile)
+    hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile)
     if options[:print_matrix]
       output_matrix = File.open(options[:output_matrix] + "_#{patient_number}", "w")
       output_matrix.puts "Region\t#{patient_hpo_profile.join("\t")}"
@@ -216,27 +211,28 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     end
 
     scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree])
-    
-    adjacent_regions_joined = []
-    regionAttributes.each do |regionID, attributes|
-      chr, start, stop, patient_ID, region_length, score = attributes
-      association_values = association_scores[regionID]
-      adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
-    end
-    
-    #Ranking
-    if options[:ranking_style] == 'mean'
-      adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
-    elsif options[:ranking_style] == 'fisher'
-      adjacent_regions_joined.sort!{|r1, r2| r1.last <=> r2.last}
-    elsif options[:ranking_style] == 'geommean'
-      adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
-    end
+    if regionAttributes.empty?
+      puts "ProfID:#{patient_number}\tResults not found"
+    else    
+      adjacent_regions_joined = []
+      regionAttributes.each do |regionID, attributes|
+        chr, start, stop, patient_ID, region_length, score = attributes
+        association_values = association_scores[regionID]
+        adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
+      end
+      
+      #Ranking
+      if options[:ranking_style] == 'fisher'
+        adjacent_regions_joined.sort!{|r1, r2| r1.last <=> r2.last}
+      else
+        adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
+      end
 
-    adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
-    adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
-      puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
-	  end
+      adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
+      adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
+        puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
+      end
+    end
   end
 
 
