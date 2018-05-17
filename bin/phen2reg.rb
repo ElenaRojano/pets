@@ -94,7 +94,6 @@ OptionParser.new do |opts|
     options[:recovery_percentage] = recovery_percentage
   end
 
-
   options[:group_by_region] = TRUE
   opts.on("-S", "--group_by_region", "Disable prediction which HPOs are located in the same region") do
     options[:group_by_region] = FALSE
@@ -122,20 +121,20 @@ end.parse!
 #MAIN
 ##########################
 
-
 if File.exist?(options[:prediction_data])
   if !options[:multiple_profile]
     options[:prediction_data] = [File.open(options[:prediction_data]).readlines.map!{|line| line.chomp}]
+    #STDERR.puts options[:prediction_data].inspect
   else
     multiple_profiles = []
     File.open(options[:prediction_data]).each do |line|
       line.chomp!
       multiple_profiles << line.split('|')
     end
-    #STDERR.puts multiple_profiles.inspect
     options[:prediction_data] = multiple_profiles
   end
 else
+  # if you want to add phenotypes through the terminal
   if !options[:multiple_profile]
     options[:prediction_data] = [options[:prediction_data].split('|')]
   else
@@ -160,7 +159,10 @@ trainingData = load_training_file4HPO(options[:training_file], options[:best_thr
 ##########################
 #- HPO PROFILE ANALYSIS
 
+phenotypes_by_patient = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
+  phenotypes_by_patient[patient_number] = patient_hpo_profile
+  # STDERR.puts phenotypes_by_patient.inspect
   if options[:hpo_is_name]
     patient_hpo_profile.each_with_index do |name, i|
       hpo_code = hpo_dictionary[name]
@@ -229,9 +231,23 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       end
 
       adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
+      predicted_hpo_percentage = []
       adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
         puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
+        patient_original_phenotypes = phenotypes_by_patient[patient_number]
+        hpo_coincidences = patient_original_phenotypes & hpo_list
+        original_hpo_recovery_percentage = hpo_coincidences.length / patient_original_phenotypes.length.to_f * 100
+        # hpo_list.each do |predicted_hpo|
+        #   predicted_hpo_list << predicted_hpo unless predicted_hpo_list.include?(predicted_hpo)  
+        # end        
+        predicted_hpo_percentage << [patient_number, original_hpo_recovery_percentage]
       end
+      handler = File.open(options[:recovery_percentage], 'w')
+      handler.puts "perc"
+      predicted_hpo_percentage.each do |patient, percentage|
+        handler.puts "#{percentage}"
+      end
+      handler.close
     end
   end
 
