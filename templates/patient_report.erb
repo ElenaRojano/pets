@@ -63,7 +63,7 @@
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 <h1 style="text-align: center; background-color:#d6eaf8">Input HPO quality control</h1>
-<p>HPO terms with CI values less than <b>1</b> are marked in red, and they do not give much information to our system. Please, if possible, select more specific HPO terms suggested in <b>Possible child HPO terms column </b>. </p>
+<p>HPO terms with IC values less than <b>1</b> are marked in red, and they do not give much information to our system. Please, if possible, select more specific HPO terms suggested in <b>Possible child HPO terms </b>column.</p>
 
 	<%= table(id: :characterised_hpos, header: true, border: 2, 
 		cell_align: %w(left center center center center left)) do |data|
@@ -90,7 +90,7 @@
 				end
 			end
 		end
-		data.unshift([add_tip("HPO name", "Name of the HPO"), "HPO code", "Exists in database?", "Information Coefficient (CI)", "Is child of", "Possible child HPO terms"])
+		data.unshift([add_tip("HPO name", "Name of the HPO"), "HPO code", "Exists in database?", "Information Coefficient (IC)", "Is child of", "Possible child HPO terms"])
 		end
 	%>
 
@@ -107,7 +107,7 @@
 		circular_data_row << row[0]
 		circular_data << circular_data_row
 	end
-	circular_data.unshift(%w[Coords P-value Chr])
+	circular_data.unshift(%w[Coords CombScore Chr])
 	@hash_vars[:circular_data] = circular_data
 	circular(
 		id: :circular_data, 
@@ -126,8 +126,8 @@
 		end
 %>
 </div>
-<h2 style="text-align: center; background-color:#d6eaf8">Ranked regions associated to HPO profile</h2>
-<p>The following table shows all associated genomic regions with a signficant combined p-value, minor than <b>0.1</b>.</p>
+<h2 style="text-align: center; background-color:#d6eaf8">Ranked genomic regions associated to the HPO profile</h2>
+<p>The following table shows all the predicted genomic regions, the HPO terms found for it, their original association values and the calculated combined score. Results are ranked from the highest to the lowest combined score.</p>
 	<%= table(id: :merged_regions, header: true, border: 2, 
 		cell_align: %w(center center center left center center)) do |data|
 		hpo_metadata = @hash_vars[:hpo_metadata]
@@ -140,7 +140,7 @@
 				end
 			end
 		end
-		data.unshift(["Chromosome", "Start", "Stop", "Associated HPOs", "Association values<br>(For each HPO)", "Combined P-value"])
+		data.unshift(["Chromosome", "Start", "Stop", "Associated HPOs", "Association values<br>(For each HPO)", "Combined score"])
 		end
 	%>
 

@@ -8,9 +8,31 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'gephepred'))
 require 'generalMethods.rb'
 require 'phen2reg_methods.rb'
 require 'optparse'
+require 'report_html'
 
-#require 'report_html' # add this require here?
+##########################
+#METHODS
+##########################
 
+def calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, min_hpo_recovery_percentage, patient_number)     
+  records_to_delete = []
+  counter = 0
+  adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
+    hpo_coincidences = patient_original_phenotypes & hpo_list
+    original_hpo_recovery_percentage = hpo_coincidences.length / patient_original_phenotypes.length.to_f * 100
+    records_to_delete << counter if original_hpo_recovery_percentage < min_hpo_recovery_percentage
+    query = predicted_hpo_percentage[patient_number] 
+    if query.nil?
+     predicted_hpo_percentage[patient_number] = [original_hpo_recovery_percentage]
+    else
+     query << original_hpo_recovery_percentage
+    end   
+    counter += 1 
+  end
+  records_to_delete.reverse_each do |record_number|
+    adjacent_regions_joined.delete_at(record_number)
+  end
+end
 ##########################
 #OPT-PARSER
 ##########################
@@ -89,9 +111,9 @@ OptionParser.new do |opts|
     options[:ranking_style] = ranking_style
   end
 
-  options[:recovery_percentage] = 'output_profile_recovery.txt'
-  opts.on("-R", "--recovery_percentage PATH", "HPO profile recovery percentage by patient") do |recovery_percentage|
-    options[:recovery_percentage] = recovery_percentage
+  options[:write_hpo_recovery_file] = TRUE
+  opts.on("-s", "--write_hpo_recovery_file", "Disable write hpo recovery file") do
+    options[:write_hpo_recovery_file] = FALSE
   end
 
   options[:group_by_region] = TRUE
@@ -113,6 +135,11 @@ OptionParser.new do |opts|
   options[:multiple_profile] = FALSE
     opts.on("-u", "--multiple_profile", "Set if multiple profiles") do
   options[:multiple_profile] = TRUE
+  end
+
+  options[:hpo_recovery] = 50
+  opts.on("-y", "--hpo_recovery INTEGER", "Minimum percentage of HPO terms to consider predictions") do |hpo_recovery|
+    options[:hpo_recovery] = hpo_recovery.to_f
   end
 
 end.parse!
@@ -160,9 +187,9 @@ trainingData = load_training_file4HPO(options[:training_file], options[:best_thr
 #- HPO PROFILE ANALYSIS
 
 phenotypes_by_patient = {}
+predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
   phenotypes_by_patient[patient_number] = patient_hpo_profile
-  # STDERR.puts phenotypes_by_patient.inspect
   if options[:hpo_is_name]
     patient_hpo_profile.each_with_index do |name, i|
       hpo_code = hpo_dictionary[name]
@@ -212,6 +239,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       output_matrix.close
     end
 
+
     scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree])
     if regionAttributes.empty?
       puts "ProfID:#{patient_number}\tResults not found"
@@ -229,30 +257,31 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       else
         adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
       end
-
-      adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
-      predicted_hpo_percentage = []
-      adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
-        puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
-        patient_original_phenotypes = phenotypes_by_patient[patient_number]
-        hpo_coincidences = patient_original_phenotypes & hpo_list
-        original_hpo_recovery_percentage = hpo_coincidences.length / patient_original_phenotypes.length.to_f * 100
-        # hpo_list.each do |predicted_hpo|
-        #   predicted_hpo_list << predicted_hpo unless predicted_hpo_list.include?(predicted_hpo)  
-        # end        
-        predicted_hpo_percentage << [patient_number, original_hpo_recovery_percentage]
+      patient_original_phenotypes = phenotypes_by_patient[patient_number]
+      calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, options[:hpo_recovery], patient_number)
+      if adjacent_regions_joined.empty?
+	puts "ProfID:#{patient_number}\tResults not found"
+      else
+        adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
+        adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|      
+          puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
+        end
       end
-      handler = File.open(options[:recovery_percentage], 'w')
-      handler.puts "perc"
-      predicted_hpo_percentage.each do |patient, percentage|
-        handler.puts "#{percentage}"
-      end
-      handler.close
     end
-  end
+  end #elsif
 
 
   #Creating html report
   #-------------------
   report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_metadata) if options[:html_reporting]
+end # end each_with_index
+
+if options[:write_hpo_recovery_file]
+  handler = File.open('output_profile_recovery', 'w')
+  predicted_hpo_percentage.each do |patient, percentage|  
+    percentage.each do |perc|
+      handler.puts "ProfID:#{patient}\t#{perc.inspect}"
+    end
+  end
+  handler.close
 end

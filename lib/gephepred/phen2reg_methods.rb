@@ -1,6 +1,6 @@
 require "statistics2"
 require "terminal-table"
-require "report_html"
+#require "report_html"
 #require 'bigdecimal'
 
 def search4HPO(info2predict, trainingData)
@@ -87,12 +87,15 @@ def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_
 			mean_association = associations.inject(0){|s,x| s + x } / sample_length
 			regionAttributes_array[i] << mean_association
 		elsif scoring_system == 'fisher'
-			lns = associations.map{|a| Math.log(Math::E ** -a)}
+			lns = associations.map{|a| Math.log(10 ** -a)} #hyper values come as log10 values
 			#https://en.wikipedia.org/wiki/Fisher%27s_method
 			sum = lns.inject(0){|s, a| s + a} 
-			combined_pvalue = Statistics2.chi2_x(lns.count{|s| s > 0} * 2, -2 * sum)		
-			#combined_pvalue = Statistics2.chi2_x(lns.length * 2, -2 * sum)
+			combined_pvalue = Statistics2.chi2_x(sample_length *2, -2*sum)	
 			regionAttributes_array[i] << combined_pvalue
+		elsif scoring_system == 'stouffer'
+			sum = associations.inject(0){|s,x| s + x}
+			combined_z_score = sum/Math.sqrt(sample_length)
+			regionAttributes_array[i] << combined_z_score
 		elsif scoring_system == 'geommean'
 			#NOTE: if troubles with number size, use BigDecimal
 			geommean_mult = associations.inject(1){|s,x| s * x}
@@ -127,7 +130,6 @@ def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_
 	elsif scoring_system == 'fisher'
 		regionAttributes.select!{|regionID, attributes| attributes.last <= pvalue_cutoff}
 	end
-	
 	#Combined p-value: less value equals better association -> not due randomly.
 end
 
@@ -143,6 +145,7 @@ def hpo_quality_control(prediction_data, hpo_metadata, hpo_child_metadata, hpos_
 	prediction_data.each do |hpo_code|
 		tmp = []
 		ci = hpos_ci_values[hpo_code]
+		#STDERR.puts hpo_metadata[hpo_code]
 		hpo_name, relations = hpo_metadata[hpo_code]
 		tmp << hpo_name # col hpo name
 		tmp << hpo_code # col hpo code
