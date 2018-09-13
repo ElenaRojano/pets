@@ -5,10 +5,15 @@
 REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'gephepred'))
+require 'net/ftp'
+require 'net/http'
+require 'zlib'
+require 'json'
 require 'generalMethods.rb'
 require 'phen2reg_methods.rb'
 require 'optparse'
 require 'report_html'
+
 
 ##########################
 #METHODS
@@ -33,6 +38,15 @@ def calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_
     adjacent_regions_joined.delete_at(record_number)
   end
 end
+
+def download(ftp_server, path, name)
+  ftp = Net::FTP.new()
+  ftp.connect(ftp_server)
+  ftp.login
+  ftp.getbinaryfile(path, name)
+  ftp.close
+end
+
 ##########################
 #OPT-PARSER
 ##########################
@@ -63,6 +77,11 @@ OptionParser.new do |opts|
   options[:information_coefficient] = nil
   opts.on("-i", "--information_coefficient PATH", "Input file with information coefficients") do |information_coefficient|
     options[:information_coefficient] = information_coefficient
+  end
+
+  options[:retrieve_kegg_data] = FALSE
+  opts.on('-k', "--retrieve_kegg_data", "Add KEGG data to prediction report") do 
+    options[:retrieve_kegg_data] = TRUE
   end
 
   options[:print_matrix] = FALSE
@@ -145,6 +164,29 @@ OptionParser.new do |opts|
 end.parse!
 
 ##########################
+#PATHS
+##########################
+all_paths = {code: File.join(File.dirname(__FILE__), '..')}
+all_paths[:external_data] = File.join(all_paths[:code], 'external_data')
+all_paths[:gene_data] = File.join(all_paths[:external_data], 'gene_data.gz')
+all_paths[:biosystems_gene] = File.join(all_paths[:external_data], 'biosystems_gene.gz')
+all_paths[:biosystems_info] = File.join(all_paths[:external_data], 'bsid2info.gz')
+all_paths[:gene_data_with_pathways] = File.join(all_paths[:external_data], 'gene_data_with_pathways.gz')
+all_paths[:gene_location] = File.join(all_paths[:external_data], 'gene_location.gz')
+
+##########################
+#DOWNLOADS
+##########################
+sources = [
+  ['ftp.ncbi.nlm.nih.gov', 'genomes/H_sapiens/ARCHIVE/ANNOTATION_RELEASE.105/GFF/ref_GRCh37.p13_top_level.gff3.gz', all_paths[:gene_data]],
+  ['ftp.ncbi.nlm.nih.gov', 'pub/biosystems/CURRENT/biosystems_gene.gz', all_paths[:biosystems_gene]],
+  ['ftp.ncbi.nlm.nih.gov', 'pub/biosystems/CURRENT/bsid2info.gz', all_paths[:biosystems_info]]
+]
+sources.each do |server, path, output|
+  download(server, path, output) if !File.exists?(output)
+end
+
+##########################
 #MAIN
 ##########################
 
@@ -178,6 +220,22 @@ if options[:quality_control]
   #STDERR.puts hpo_metadata.inspect
   hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
   hpos_ci_values = load_hpo_ci_values(options[:information_coefficient])
+end
+
+genes_with_kegg = {}
+gene_location = {}
+if options[:retrieve_kegg_data] 
+  if !File.exists?(all_paths[:gene_data_with_pathways]) || !File.exists?(all_paths[:gene_location])
+    gene_list, gene_location = load_gene_data(all_paths[:gene_data])
+    ### kegg_data = parse_kegg_data(genes_found_attributes.keys)
+    kegg_data = parse_kegg_from_biosystems(all_paths[:biosystems_gene], all_paths[:biosystems_info])
+    genes_with_kegg = merge_genes_with_kegg_data(gene_list, kegg_data)
+    write_compressed_plain_file(genes_with_kegg, all_paths[:gene_data_with_pathways])
+    write_compressed_plain_file(gene_location, all_paths[:gene_location])
+  else
+    gene_location = read_compressed_json(all_paths[:gene_location])
+    genes_with_kegg = read_compressed_json(all_paths[:gene_data_with_pathways])
+  end
 end
 
 hpo_dictionary = load_hpo_dictionary_name2code(options[:hpo2name_file]) if options[:hpo_is_name]
@@ -214,19 +272,20 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     output_quality_control.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
     output_quality_control.close
   end
+
   #Prediction steps
   #---------------------------
   hpo_regions = search4HPO(patient_hpo_profile, trainingData)
   if hpo_regions.empty?
-  	puts "ProfID:#{patient_number}\tResults not found"
+    puts "ProfID:#{patient_number}\tResults not found"
   elsif options[:group_by_region] == FALSE
-  	hpo_regions.each do |hpo, regions|
-  		regions.each do |region|
-  			puts "ProfID:#{patient_number}\t#{hpo}\t#{region.join("\t")}"
-  		end
-  	end
+    hpo_regions.each do |hpo, regions|
+      regions.each do |region|
+        puts "ProfID:#{patient_number}\t#{hpo}\t#{region.join("\t")}"
+      end
+    end
   elsif options[:group_by_region] == TRUE
-  	region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
+    region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
     hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile)
     if options[:print_matrix]
       output_matrix = File.open(options[:output_matrix] + "_#{patient_number}", "w")
@@ -260,7 +319,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       patient_original_phenotypes = phenotypes_by_patient[patient_number]
       calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, options[:hpo_recovery], patient_number)
       if adjacent_regions_joined.empty?
-	puts "ProfID:#{patient_number}\tResults not found"
+        puts "ProfID:#{patient_number}\tResults not found"
       else
         adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
         adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|      
@@ -270,10 +329,41 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     end
   end #elsif
 
+  pathway_stats = {}
+  if options[:retrieve_kegg_data]
+    genes_found = []
+    genes_found_attributes = {}
+    adjacent_regions_joined.each do |adjacent_region|
+      ref_chr, ref_start, ref_stop = adjacent_region
+      chr_genes = gene_location[ref_chr]
+      genes = []
+      chr_genes.each do |gene_name, gene_start, gene_stop|
+          if (ref_start > gene_start && ref_stop < gene_stop) ||
+            (ref_start < gene_start && ref_stop > gene_stop) ||
+            (ref_start < gene_start && ref_stop > gene_start) ||
+            (ref_start < gene_stop && ref_stop > gene_stop)
+            genes << gene_name
+          end
+      end
+      genes_found << genes
+    end
+
+    genes_with_kegg_data = []
+    genes_found.each do |genes|
+      genes_cluster = []
+      genes.each do |gene|
+        query = genes_with_kegg[gene]
+        genes_cluster << [gene, query]
+      end
+      genes_with_kegg_data << genes_cluster
+    end
+    pathway_stats = compute_pathway_enrichment(genes_with_kegg_data, genes_with_kegg)
+    pathway_stats.sort!{|p1, p2| p1.last <=> p2.last}
+  end
 
   #Creating html report
   #-------------------
-  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_metadata) if options[:html_reporting]
+  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_metadata, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
 end # end each_with_index
 
 if options[:write_hpo_recovery_file]

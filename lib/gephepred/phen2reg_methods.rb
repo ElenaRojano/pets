@@ -185,10 +185,13 @@ def check_parents(relations, prediction_data, hpo_metadata)
 	return parent
 end
 
-def report_data(characterised_hpos, hpo_associated_regions, html_file, hpo_metadata)
+def report_data(characterised_hpos, hpo_associated_regions, html_file, hpo_metadata, genes_with_kegg_data, pathway_stats)
 	container = {:characterised_hpos => characterised_hpos,
 	 	:merged_regions => hpo_associated_regions,
-	 	:hpo_metadata => hpo_metadata}
+	 	:hpo_metadata => hpo_metadata,
+	 	:genes_with_kegg_data => genes_with_kegg_data,
+	 	:pathway_stats => pathway_stats
+	 }
 	template = File.open(File.join(REPORT_FOLDER, 'patient_report.erb')).read
 	report = Report_html.new(container, 'Patient HPO profile summary')
 	report.build(template)
