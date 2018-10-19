@@ -63,6 +63,7 @@ def load_hpo_dictionary_name2code(hpo_file)
 		line.chomp!
 		fields = line.split("\t")
 		hpo_code = fields.shift
+		alt_ids = fields.shift.split('|')
 		phenotype = fields.shift
 		synonyms = fields.shift
 		storage[phenotype] = hpo_code
@@ -82,6 +83,7 @@ def load_hpo_metadata(hpo_file)
 		line.chomp!
 		fields = line.split("\t")
 		hpo_code = fields.shift
+		alt_ids = fields.shift.split('|')
 		phenotype = fields.shift
 		synonyms = fields.shift 
 		relations = []
@@ -89,7 +91,11 @@ def load_hpo_metadata(hpo_file)
 			#pair = HPO code, phenotype
 			relations << pair
 		end
-		storage[hpo_code] = [phenotype, relations]
+		data = [hpo_code, phenotype, relations]
+		storage[hpo_code] = data
+		alt_ids.each do |alt_id|
+			storage[alt_id] = data
+		end
 	end
 	return storage
 end
@@ -98,10 +104,10 @@ def inverse_hpo_metadata(hpo_metadata)
 	# for getting hpo childs
 	storage_child = {}
 	hpo_metadata.each do |hpo_code, hpo_data|
-		hpo_name, parents = hpo_data
+		main_code, hpo_name, parents = hpo_data
 		parents.each do |par_hpo_code, par_hpo_name|
 			query = storage_child[par_hpo_code]
-			hpo_child = [hpo_code, hpo_name]
+			hpo_child = [main_code, hpo_name]
 			if query.nil?
 				storage_child[par_hpo_code] = [par_hpo_name, [hpo_child]]
 			else
@@ -120,6 +126,21 @@ def load_hpo_ci_values(information_coefficient_file)
 		hpos_ci_values[hpo_code] = ci.to_f
 	end
 	return hpos_ci_values
+end
+
+def load_clustered_patients(file)
+	clusters = {}
+	File.open(file).each do |line|
+		line.chomp!
+		pat_id, cluster_id = line.split("\t")
+		query = clusters[cluster_id]
+		if query.nil?
+			clusters[cluster_id] = [pat_id]
+		else
+			query << pat_id
+		end
+	end
+	return clusters
 end
 
 def load_gene_data(gene_data_path)

@@ -1,0 +1,44 @@
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">Summary stats</h1>
+	<p> General stats about the patient cohort</p>
+	<%= table(id: :summary_stats, header: true, border: 2, 
+		cell_align: %w(left center )) do |data|
+		data.unshift(['Stat', 'Value'])
+		end
+	%>
+</div>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">HPO stats</h1>
+	<p> HPOs more frequent in the cohort </p>
+	<%= table(id: :hpo_stats, header: true, border: 2, 
+		cell_align: %w(left center )) do |data|
+			data.unshift(['HPO', ' Patient percentage'])
+		end
+	%>
+</div>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">Clustering patients by HPO profile</h1>
+	<p> All patients are clustered using their HPO profiles. First figure shows the information coefficient distribution for the top clusters. Second figure shows which chromosomes are affected in the patients for each top cluster. </p>
+	<%= embed_pdf(File.join(@hash_vars[:temp_folder],'boxplot.pdf'), 'width="800" height="800"') %>
+	<%= 
+		plot = File.join(@hash_vars[:temp_folder],'scatterplot.pdf')
+		if File.exists?(plot)
+			embed_pdf(plot, 'width="800" height="800"') 
+		else
+			"<p> Genomic data was not specified </p>"
+		end
+	%>
+</div>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">HPO profiles of the top clusters</h1>
+	<% @hash_vars[:top_cluster_phenotypes].times do |n| %>
+		<%= table(id: "clust_#{n}", header: true, border: 2, row_names: false, text: true, 
+			cell_align: %w( center )) do |data|
+				data.unshift(["HPO profiles in cluster #{n}"])
+			end
+		%>
+	<%end%>
+</div>

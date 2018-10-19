@@ -45,8 +45,66 @@ def group_by_region(hpo_regions)
 	return region2hpo, regionAttributes, association_scores
 end
 
+def add_parentals_of_not_found_hpos_in_regions(
+	patient_hpo_profile, 
+	trainingData, 
+	region2hpo, 
+	regionAttributes, 
+	association_scores,
+	hpo_metadata # hpo_code => [phenotype, relations]
+	)
+	new_hpos = []
+	region2hpo.each do |regionID, hpos|
+		hpos_not_found = patient_hpo_profile - hpos
+		parental_hpos = []
+		hpo_scores = {}
+		hpos_not_found.each do |hpo|
+			region, parental_hpo = get_region_with_parental_hpo(hpo, regionID, trainingData , hpo_metadata)
+			if !region.nil? && 
+				!parental_hpos.include?(parental_hpo) && 
+				!patient_hpo_profile.include?(parental_hpo)
+				parental_hpos << parental_hpo
+				hpo_scores[parental_hpo] = region.last
+			end
+		end
+		hpos.concat(parental_hpos)
+		new_hpos.concat(parental_hpos)
+		association_scores[regionID].merge!(hpo_scores)
+	end
+	patient_hpo_profile.concat(new_hpos.uniq)
+end
 
-def generate_hpo_region_matrix(region2hpo, association_scores, info2predict)
+def get_region_with_parental_hpo(hpo, regionID, trainingData , hpo_metadata)
+	region = nil
+	final_hpo = nil
+	hpos = [hpo]
+	while !hpos.empty?
+		temp = []
+		hpos.each do |hp| 
+			hpo_data = hpo_metadata[hp]
+			if !hpo_data.nil?
+				main_hpo_code, phenotype, relations = hpo_data
+				temp.concat(relations.map{|rel| rel.first})
+			end
+		end
+		temp.each do |temp_hpo|
+			regions = trainingData[temp_hpo]
+			if !regions.nil?
+				final_reg = regions.select{|reg| reg[3] == regionID}
+				if !final_reg.empty?
+					region = final_reg.first
+					final_hpo = temp_hpo
+					temp = []
+					break
+				end
+			end
+		end
+		hpos = temp
+	end
+	return region, final_hpo
+end
+
+def generate_hpo_region_matrix(region2hpo, association_scores, info2predict, null_value=0)
 	# #method for creating the hpo to region matrix for plotting
 	# #info2predict = hpo list from user
 	# #hpo_associated_regions = [[chr, start, stop, [hpos_list], [weighted_association_scores]]]
@@ -56,7 +114,7 @@ def generate_hpo_region_matrix(region2hpo, association_scores, info2predict)
 		info2predict.each do |user_hpo|
 			value = association_scores[regionID][user_hpo]
 			if value.nil?
-				row << 0
+				row << null_value
 			else
 				row << value
 			end
@@ -66,7 +124,7 @@ def generate_hpo_region_matrix(region2hpo, association_scores, info2predict)
 	return hpo_region_matrix
 end
 
-def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_cutoff, freedom_degree)
+def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_cutoff, freedom_degree, null_value=0)
 	#hpo_associated_regions = [[chr, start, stop, [hpos_list], [weighted_association_scores]]]
 	#hpo_region_matrix = [[0, 0.4, 0, 0.4], [0, 0, 0.5, 0.4]]
 	regionAttributes_array = regionAttributes.values
@@ -87,8 +145,9 @@ def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_
 			mean_association = associations.inject(0){|s,x| s + x } / sample_length
 			regionAttributes_array[i] << mean_association
 		elsif scoring_system == 'fisher'
-			lns = associations.map{|a| Math.log(10 ** -a)} #hyper values come as log10 values
+			#hyper must be ln not log10 from net analyzer
 			#https://en.wikipedia.org/wiki/Fisher%27s_method
+			lns = associations.map{|a| Math.log(10 ** -a)} #hyper values come as log10 values
 			sum = lns.inject(0){|s, a| s + a} 
 			combined_pvalue = Statistics2.chi2_x(sample_length *2, -2*sum)	
 			regionAttributes_array[i] << combined_pvalue
@@ -133,6 +192,38 @@ def scoring_regions(regionAttributes, hpo_region_matrix, scoring_system, pvalue_
 	#Combined p-value: less value equals better association -> not due randomly.
 end
 
+def join_regions(regions)
+	#[chr, start, stop, association_values.keys, association_values.values, score]
+	merged_regions = []
+	sorted_regions = regions.sort_by{|reg | [reg[0], reg[1]]}
+	ref_reg = sorted_regions.shift
+	while !sorted_regions.empty?
+		next_region = sorted_regions.shift
+		if ref_reg[0] == next_region[0] &&
+			(ref_reg[2] - next_region[1]).abs <= 1 &&
+			(ref_reg[5] - next_region[5]).abs.fdiv([ref_reg[5], next_region[5]].max) <= 0.05 &&
+			ref_reg[3] == next_region[3]
+
+			ref_reg[2] = next_region[2]
+			ref_assoc_values = ref_reg[4] 
+			next_assoc_values = next_region[4]
+			assoc_values = []
+			ref_assoc_values.each_with_index do |ref_val, i|
+				#assoc_values << (ref_val + next_assoc_values[i]).fdiv(2)
+				assoc_values << [ref_val, next_assoc_values[i]].max
+			end
+			ref_reg[4] = assoc_values
+			#ref_reg[5] = (ref_reg[5] + next_region[5]).fdiv(2)
+			ref_reg[5] = [ref_reg[5], next_region[5]].max
+		else
+			merged_regions << ref_reg
+			ref_reg = next_region
+		end
+	end
+	merged_regions << ref_reg
+	return merged_regions
+end
+
 # def hpo_quality_control(prediction_data, hpo_metadata_file, information_coefficient_file)
 def hpo_quality_control(prediction_data, hpo_metadata, hpo_child_metadata, hpos_ci_values)
 	characterised_hpos = []
@@ -146,7 +237,7 @@ def hpo_quality_control(prediction_data, hpo_metadata, hpo_child_metadata, hpos_
 		tmp = []
 		ci = hpos_ci_values[hpo_code]
 		#STDERR.puts hpo_metadata[hpo_code]
-		hpo_name, relations = hpo_metadata[hpo_code]
+		main_hpo_code, hpo_name, relations = hpo_metadata[hpo_code]
 		tmp << hpo_name # col hpo name
 		tmp << hpo_code # col hpo code
 		unless ci.nil? # col exists? and ci values

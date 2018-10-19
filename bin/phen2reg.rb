@@ -215,8 +215,8 @@ end
 #- Loading data
 
 
+hpo_metadata = load_hpo_metadata(options[:hpo2name_file])
 if options[:quality_control]
-  hpo_metadata = load_hpo_metadata(options[:hpo2name_file])
   #STDERR.puts hpo_metadata.inspect
   hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
   hpos_ci_values = load_hpo_ci_values(options[:information_coefficient])
@@ -260,6 +260,8 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     patient_hpo_profile.compact!
   end
 
+
+
   #HPO quality control
   #---------------------------
   characterised_hpos = []
@@ -286,7 +288,11 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     end
   elsif options[:group_by_region] == TRUE
     region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
-    hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile)
+    #STDERR.puts patient_hpo_profile.inspect
+    #add_parentals_of_not_found_hpos_in_regions(patient_hpo_profile, trainingData, region2hpo, regionAttributes, association_scores, hpo_metadata)
+    #STDERR.puts patient_hpo_profile.inspect
+    null_value = 0
+    hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile, null_value)
     if options[:print_matrix]
       output_matrix = File.open(options[:output_matrix] + "_#{patient_number}", "w")
       output_matrix.puts "Region\t#{patient_hpo_profile.join("\t")}"
@@ -299,7 +305,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     end
 
 
-    scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree])
+    scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree], null_value)
     if regionAttributes.empty?
       puts "ProfID:#{patient_number}\tResults not found"
     else    
@@ -309,6 +315,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
         association_values = association_scores[regionID]
         adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
       end
+      adjacent_regions_joined = join_regions(adjacent_regions_joined) # MOVER A ANTES DE CONSTRUIR LA MATRIZ
       
       #Ranking
       if options[:ranking_style] == 'fisher'
