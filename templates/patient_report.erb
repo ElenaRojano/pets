@@ -98,72 +98,88 @@
 <h2 style="text-align: center; background-color:#d6eaf8">General representation</h2>
 <div style="overflow: hidden;">
 <%=
-	circular_data = []
-	@hash_vars[:merged_regions].sort{|reg1, reg2| [reg1[0].to_i, reg1[1].to_i] <=> [reg2[0].to_i, reg2[1].to_i]}.each do |row|
-		#TODO if chr were x or y, change them to 23 and 24 and, when print, use x and y again
-		circular_data_row = []
-		circular_data_row << "#{row[1]}-#{row[2]}"
-		circular_data_row << row[5]
-		circular_data_row << row[0]
-		circular_data << circular_data_row
-	end
-	circular_data.unshift(%w[Coords CombScore Chr])
-	@hash_vars[:circular_data] = circular_data
-	circular(
-		id: :circular_data, 
-		header: true,
-		row_names: true,
-		responsive: false,
-		sample_attributes: {'Chr' => 2},
-		config:{
-	#		'smpLabelOrientation' => 'circular',
-			'smpOverlays' => ['Chr'],
-			'colorSpectrum' => ["#d73027", "#fc8d59", "#fee090", "#ffffbf", "#e0f3f8", "#91bfdb", "#4575b4"],
-	#		'segregateSamplesBy' => ['Chr']
-			}
-		) do |data|
-			data.pop #Discard chromosome data
+	if !@hash_vars[:merged_regions].nil?
+		circular_data = []
+		@hash_vars[:merged_regions].sort{|reg1, reg2| [reg1[0].to_i, reg1[1].to_i] <=> [reg2[0].to_i, reg2[1].to_i]}.each do |row|
+			#TODO if chr were x or y, change them to 23 and 24 and, when print, use x and y again
+			circular_data_row = []
+			circular_data_row << "#{row[1]}-#{row[2]}"
+			circular_data_row << row[5]
+			circular_data_row << row[0]
+			circular_data << circular_data_row
 		end
+		circular_data.unshift(%w[Coords CombScore Chr])
+		@hash_vars[:circular_data] = circular_data
+		circular(
+			id: :circular_data, 
+			header: true,
+			row_names: true,
+			responsive: false,
+			sample_attributes: {'Chr' => 2},
+			config:{
+		#		'smpLabelOrientation' => 'circular',
+				'smpOverlays' => ['Chr'],
+				'colorSpectrum' => ["#d73027", "#fc8d59", "#fee090", "#ffffbf", "#e0f3f8", "#91bfdb", "#4575b4"],
+		#		'segregateSamplesBy' => ['Chr']
+				}
+			) do |data|
+				data.pop #Discard chromosome data
+			end
+	end
 %>
 </div>
 <h2 style="text-align: center; background-color:#d6eaf8">Ranked genomic regions associated to the HPO profile</h2>
 <p>The following table shows all the predicted genomic regions, the HPO terms found for it, their original association values and the calculated combined score. Results are ranked from the highest to the lowest combined score.</p>
-	<%= table(id: :merged_regions, header: true, border: 2, 
+	<%= 
+	if !@hash_vars[:merged_regions].nil?
+		gene_var = @hash_vars[:genes_with_kegg_data]
+		table(id: :merged_regions, header: true, border: 2, 
 		cell_align: %w(center center center left center center)) do |data|
 		hpo_metadata = @hash_vars[:hpo_metadata]
 		data.each_with_index do |row, row_number|
 			row.each_with_index do |cell, i|
 				if i == 3
-					row[i] = cell.map{|h| "#{get_hpo_link(h)}: #{hpo_metadata[h].first}"}.join("\n<br>")
+					row[i] = cell.map{|h| "#{get_hpo_link(h)}: #{hpo_metadata[h][1]}"}.join("\n<br>")
 				elsif i == 4
-					row[i] = cell.map{|a| a.to_f.round(2)}.join("\n<br>")
+					row[i] = cell.map{|a| 
+						if a.abs > 0.01
+							a.to_f.round(2)
+						else
+							"%e" %a
+						end
+						}.join("\n<br>")
 				end
 			end
-			gene_data = @hash_vars[:genes_with_kegg_data][row_number]
-			if !gene_data.empty?
-				table = '<table border= "2">'
-				table << "<tr><th>#{["GeneID", "Gene Names", "Description", "KEGG pathways"].join('</th><th>')}</th></tr>"
-				geneIDs = gene_data.map{|gd| gd.first}
-				gene_data.each do |geneID, attributes|
-					table << '<tr>'
-					table << "<td><a href=https://www.ncbi.nlm.nih.gov/gene/?term=#{geneID}>#{geneID}</a></td>"
-					if !attributes.nil?
-						table << "<td>#{attributes[0][0..1].join(', ')}</td>"
-						table << "<td>#{attributes[1]}</td>"
-						table << "<td>#{attributes[2].map{|pws| "<a href=\"https://www.kegg.jp/pathway/#{pws.first}+#{geneIDs.join('+')}\">#{pws.last}</a>"}.join('<br>')}</td>"
-					else
-						table << '<td></td>' * 3
+			if !gene_var.nil?
+				gene_data = gene_var[row_number]
+				if !gene_data.empty?
+					table = '<table border= "2">'
+					table << "<tr><th>#{["GeneID", "Gene Names", "Description", "KEGG pathways"].join('</th><th>')}</th></tr>"
+					geneIDs = gene_data.map{|gd| gd.first}
+					gene_data.each do |geneID, attributes|
+						table << '<tr>'
+						table << "<td><a href=https://www.ncbi.nlm.nih.gov/gene/?term=#{geneID}>#{geneID}</a></td>"
+						if !attributes.nil?
+							table << "<td>#{attributes[0][0..1].join(', ')}</td>"
+							table << "<td>#{attributes[1]}</td>"
+							table << "<td>#{attributes[2].map{|pws| "<a href=\"https://www.kegg.jp/pathway/#{pws.first}+#{geneIDs.join('+')}\">#{pws.last}</a>"}.join('<br>')}</td>"
+						else
+							table << '<td></td>' * 3
+						end
+						table << '</tr>'
 					end
-					table << '</tr>'
+					table << '</table>'
+					row << table
+				else
+					row << ('-')
 				end
-				table << '</table>'
-				row << table
 			else
 				row << ('-')
 			end
 		end
 		data.unshift(["Chromosome", "Start", "Stop", "Associated HPOs", "Association values<br>(For each HPO)", "Combined score", "Gene data" ])
 		end
+	end
 	%>
 
 <% if !@hash_vars[:pathway_stats].empty? %>
