@@ -1,5 +1,5 @@
 #! /usr/bin/env ruby
-# E. Rojano, September 2016
+# Rojano E. & Seoane P., September 2016
 # Program to predict the position from given HPO codes, sorted by their association values.
 
 REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
@@ -62,7 +62,7 @@ OptionParser.new do |opts|
   options[:freedom_degree] = 'prednum'
   opts.on("-d", "--freedom_degree STRING", "Type of freedom degree calculation: prednum, phennum, maxnum") do |fd|
     options[:freedom_degree] = fd
-  end 
+  end
 
   options[:html_file] = "patient_profile_report.html"
   opts.on("-F", "--html_file PATH", "HTML file with patient information HPO profile summary") do |html_file|
@@ -79,14 +79,14 @@ OptionParser.new do |opts|
     options[:information_coefficient] = information_coefficient
   end
 
-  options[:retrieve_kegg_data] = FALSE
+  options[:retrieve_kegg_data] = false
   opts.on('-k', "--retrieve_kegg_data", "Add KEGG data to prediction report") do 
-    options[:retrieve_kegg_data] = TRUE
+    options[:retrieve_kegg_data] = true
   end
 
-  options[:print_matrix] = FALSE
+  options[:print_matrix] = false
   opts.on('-m', "--print_matrix", "Print output matrix") do 
-    options[:print_matrix] = TRUE
+    options[:print_matrix] = true
   end
 
   options[:max_number] = 10
@@ -94,9 +94,9 @@ OptionParser.new do |opts|
     options[:max_number] = max_number.to_i
   end
 
-  options[:hpo_is_name] = FALSE
+  options[:hpo_is_name] = false
     opts.on("-n", "--hpo_is_name", "Set this flag if phenotypes are given as names instead of codes") do
-  options[:hpo_is_name] = TRUE
+  options[:hpo_is_name] = true
   end  
 
   options[:output_quality_control] = "output_quality_control.txt"
@@ -111,7 +111,7 @@ OptionParser.new do |opts|
 
   options[:prediction_data] = nil
   #chr\tstart\tstop
-  opts.on("-p", "--prediction_file PATH", "Input data with HPO codes for predicting their location. It can be either, a file path or string with HPO separated by commas") do |input_path|
+  opts.on("-p", "--prediction_file PATH", "Input data with HPO codes for predicting their location. It can be either, a file path or string with HPO separated by pipes (|)") do |input_path|
     options[:prediction_data] = input_path
   end
 
@@ -120,9 +120,9 @@ OptionParser.new do |opts|
     options[:pvalue_cutoff] = pvalue_cutoff.to_f
   end
 
-  options[:quality_control] = TRUE
+  options[:quality_control] = true
   opts.on("-Q", "--no_quality_control", "Disable quality control") do
-    options[:quality_control] = FALSE
+    options[:quality_control] = false
   end 
 
   options[:ranking_style] = ''
@@ -130,19 +130,19 @@ OptionParser.new do |opts|
     options[:ranking_style] = ranking_style
   end
 
-  options[:write_hpo_recovery_file] = TRUE
+  options[:write_hpo_recovery_file] = true
   opts.on("-s", "--write_hpo_recovery_file", "Disable write hpo recovery file") do
-    options[:write_hpo_recovery_file] = FALSE
+    options[:write_hpo_recovery_file] = false
   end
 
-  options[:group_by_region] = TRUE
+  options[:group_by_region] = true
   opts.on("-S", "--group_by_region", "Disable prediction which HPOs are located in the same region") do
-    options[:group_by_region] = FALSE
+    options[:group_by_region] = false
   end
 
-  options[:html_reporting] = TRUE
+  options[:html_reporting] = true
   opts.on("-T", "--no_html_reporting", "Disable html reporting") do
-    options[:html_reporting] = FALSE
+    options[:html_reporting] = false
   end 
 
   options[:training_file] = nil
@@ -151,9 +151,9 @@ OptionParser.new do |opts|
     options[:training_file] = training_path
   end
 
-  options[:multiple_profile] = FALSE
+  options[:multiple_profile] = false
     opts.on("-u", "--multiple_profile", "Set if multiple profiles") do
-  options[:multiple_profile] = TRUE
+  options[:multiple_profile] = true
   end
 
   options[:hpo_recovery] = 50
@@ -214,8 +214,8 @@ end
 ##########################
 #- Loading data
 
-
-hpo_metadata = load_hpo_metadata(options[:hpo2name_file])
+hpo_storage, hpo_dictionary, hpo_metadata = load_hpo_file(options[:hpo2name_file], true)
+# hpo_metadata = load_hpo_metadata(options[:hpo2name_file])
 if options[:quality_control]
   #STDERR.puts hpo_metadata.inspect
   hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
@@ -238,7 +238,7 @@ if options[:retrieve_kegg_data]
   end
 end
 
-hpo_dictionary = load_hpo_dictionary_name2code(options[:hpo2name_file]) if options[:hpo_is_name]
+# hpo_dictionary = load_hpo_dictionary_name2code(options[:hpo2name_file]) if options[:hpo_is_name]
 trainingData = load_training_file4HPO(options[:training_file], options[:best_thresold])
 
 ##########################
@@ -280,13 +280,13 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   hpo_regions = search4HPO(patient_hpo_profile, trainingData)
   if hpo_regions.empty?
     puts "ProfID:#{patient_number}\tResults not found"
-  elsif options[:group_by_region] == FALSE
+  elsif options[:group_by_region] == false
     hpo_regions.each do |hpo, regions|
       regions.each do |region|
         puts "ProfID:#{patient_number}\t#{hpo}\t#{region.join("\t")}"
       end
     end
-  elsif options[:group_by_region] == TRUE
+  elsif options[:group_by_region] == true
     region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
     #STDERR.puts patient_hpo_profile.inspect
     #add_parentals_of_not_found_hpos_in_regions(patient_hpo_profile, trainingData, region2hpo, regionAttributes, association_scores, hpo_metadata)
