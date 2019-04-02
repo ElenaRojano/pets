@@ -57,121 +57,65 @@ def loadFile(file, thresold=0)
 	return information
 end
 
+
 def load_hpo_file(hpo_file, return_dicts=true)
-	hpo_storage = []
-	hpo_dictionary = {}
-	hpo_metadata = {}
+	hpo_storage = {}
 	id = nil
 	name = nil
 	alt_id = []
 	syn = []
 	is_a = []
-	relations = []
 	File.open(hpo_file).each do |line|
 		line.chomp!
 		tag, info = line.split(': ')
 		if tag == 'id' || tag == 'name' || tag == 'is_a' || tag == 'synonym' || tag == 'alt_id'
 			if tag == 'id'
-				hpo_storage << [id, alt_id.join('|'), name, syn.join('|')].concat(is_a) if !name.nil?  #if !temp[1].include?("obsolete") 
-				hpo_dictionary[name] = id
-				if !syn.empty?
-					syn.each do |s|
-						hpo_dictionary[s] = id
-					end
-				end
-				relations << [id, name]
-				data = [id, name, relations]
-				hpo_metadata[id] = data
-				alt_id.each do |a|
-					hpo_metadata[a] = data
-				end
+				hpo_storage[id] = [id, alt_id.join('|'), name, syn.join('|'), is_a] if !name.nil?
 				id = info
 				name = nil
 				alt_id = []
 				syn = []
 				is_a = []
-				relations = []
 			end
 			if tag == 'alt_id'
 				alt_id << info
 			elsif tag == 'is_a'
-				is_a.concat(info.split(' ! '))
+				is_a << info.split(' ! ')
 			elsif tag == 'synonym'
-				syn << info.split('"')[1]
+				syn << info.split('"')[1] #to keep only the name of the synonym
 			else
 				name = info
 			end
 		end
 	end
-	hpo_storage << [id, alt_id.join('|'), name, syn.join('|')].concat(is_a)
-	if !syn.empty?
-		syn.each do |s|
-			hpo_dictionary[s] = id
-		end
-	end
-	data = [id, name, relations]
-	hpo_metadata[id] = data
-	alt_id.each do |a|
-		hpo_metadata[a] = data
-	end
-	# STDERR.puts hpo_metadata.inspect
-	if return_dicts
-		return hpo_storage, hpo_dictionary, hpo_metadata
-	else
-		return hpo_storage
-	end
+	hpo_storage[id] = [id, alt_id.join('|'), name, syn.join('|'), is_a]
+	return hpo_storage
 end
 
-
-# def load_hpo_dictionary_name2code(hpo_file)
-# 	storage = {}
-# 	#STDERR.puts hpo_file.inspect
-# 	File.open(hpo_file).each do |line|
-# 		line.chomp!
-# 		fields = line.split("\t")
-# 		hpo_code = fields.shift
-# 		alt_ids = fields.shift.split('|')
-# 		phenotype = fields.shift
-# 		synonyms = fields.shift
-# 		storage[phenotype] = hpo_code
-# 		if !synonyms.nil?
-# 			synonyms.split('|').each do |syn|
-# 				storage[syn] = hpo_code
-# 			end
-# 		end
-# 	end
-# 	return storage
-# end
-
-# def load_hpo_metadata(hpo_file)
-# 	#input_file: hpo2name.txt
-# 	storage = {}
-# 	File.open(hpo_file).each do |line|
-# 		line.chomp!
-# 		fields = line.split("\t")
-# 		hpo_code = fields.shift
-# 		alt_ids = fields.shift.split('|')
-# 		phenotype = fields.shift
-# 		synonyms = fields.shift 
-# 		relations = []
-# 		fields.each_slice(2) do |pair|
-# 			#pair = HPO code, phenotype
-# 			relations << pair
-# 		end
-# 		data = [hpo_code, phenotype, relations]
-# 		storage[hpo_code] = data
-# 		alt_ids.each do |alt_id|
-# 			storage[alt_id] = data
-# 		end
-# 	end
-# 	return storage
-# end
+def create_hpo_dictionary(hpo_storage, hpo_black_list=[])
+	hpo_dictionary = {}
+	hpo_storage.each do |hpo, metadata|
+		hpo_code = metadata.shift
+		next if hpo_black_list.include?(hpo_code)
+		alt_hpo_code = metadata.shift
+		phenotype = metadata.shift
+		synonyms = metadata.shift 
+		relations = metadata.shift
+		hpo_dictionary[phenotype] = [hpo_code, relations]
+		if !synonyms.nil?
+			synonyms.split('|').each do |syn|
+				hpo_dictionary[syn] = [hpo_code, relations]
+			end
+		end
+	end
+	return hpo_dictionary
+end
 
 def inverse_hpo_metadata(hpo_metadata)
 	# for getting hpo childs
 	storage_child = {}
 	hpo_metadata.each do |hpo_code, hpo_data|
-		main_code, hpo_name, parents = hpo_data
+		main_code, alternative_id, hpo_name, synonyms, parents = hpo_data
 		parents.each do |par_hpo_code, par_hpo_name|
 			query = storage_child[par_hpo_code]
 			hpo_child = [main_code, hpo_name]
