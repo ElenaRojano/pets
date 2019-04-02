@@ -16,63 +16,6 @@ require "benchmark"
 #METHODS
 ###############################
 
-# def load_hpo_file(hpo_file)
-# 	hpo_storage = []
-# 	id = nil
-# 	name = nil
-# 	alt_id = []
-# 	syn = []
-# 	is_a = []
-# 	File.open(hpo_file).each do |line|
-# 		line.chomp!
-# 		tag, info = line.split(': ')
-# 		if tag == 'id' || tag == 'name' || tag == 'is_a' || tag == 'synonym' || tag == 'alt_id'
-# 			if tag == 'id'
-# 				hpo_storage << [id, alt_id.join('|'), name, syn.join('|')].concat(is_a) if !name.nil?  #if !temp[1].include?("obsolete") 
-# 				id = info
-# 				name = nil
-# 				alt_id = []
-# 				syn = []
-# 				is_a = []
-# 			end
-# 			if tag == 'alt_id'
-# 				alt_id << info
-# 			elsif tag == 'is_a'
-# 				is_a.concat(info.split(' ! '))
-# 			elsif tag == 'synonym'
-# 				syn << info.split('"')[1]
-# 			else
-# 				name = info
-# 			end
-# 		end
-# 	end
-# 	hpo_storage << [id, alt_id.join('|'), name, syn.join('|')].concat(is_a)
-# 	return hpo_storage
-# end
-
-def create_hpo_dictionary(hpo_storage, hpo_black_list)
-	storage = {}
-	hpo_storage.each do |hpos|
-		hpo_code = hpos.shift
-		next if hpo_black_list.include?(hpo_code)
-		alt_hpo_code = hpos.shift
-		phenotype = hpos.shift
-		synonyms = hpos.shift 
-		relations = []
-		hpos.each_slice(2) do |pair|
-			#pair = HPO code, phenotype
-			relations << pair
-		end
-		storage[phenotype] = [hpo_code, relations]
-		if !synonyms.nil?
-			synonyms.split('|').each do |syn|
-				storage[syn] = [hpo_code, relations]
-			end
-		end
-	end
-	return storage
-end
-
 def load_hpo_black_list(excluded_hpo_file)
 	excluded_hpos = []
 	File.open(excluded_hpo_file).each do |line|
@@ -167,6 +110,81 @@ def overlap_patients(genomic_ranges, reference)
 	return overlaps
 end
 
+def generate_cluster_file(output_fileName, chr_patients_genomic_region, mutation_type)
+	patients_by_cluster = []
+	handler = File.open(output_fileName, 'w')
+	chr_patients_genomic_region.each do |chrm, genomic_ranges|
+		reference = get_reference(genomic_ranges) # Get putative overlap regions
+		overlapping_patients = overlap_patients(genomic_ranges, reference) # See what patient has match with a overlap region
+		clust_number = 0
+		reference.each_with_index do |ref, i|
+			current_patients = overlapping_patients[i]
+			if current_patients.length > 1
+				ref << chrm
+				node_identifier = "#{chrm}.#{clust_number + 1}.#{mutation_type}.#{current_patients.length}"
+				patients_by_cluster << [current_patients, node_identifier]
+				ref << node_identifier
+				handler.puts ref.join("\t")
+				clust_number += 1
+			end
+		end
+	end
+	handler.close
+	return patients_by_cluster
+end
+
+# def generate_nodes_file(output_nodesFileName, patients_by_cluster)
+# 	patients_list = []
+# 	handler = File.open(output_nodesFileName, 'w')
+# 	patients_by_cluster.each do |patients, node_id|
+# 		patients.each do |patient|
+# 			patients_list << patient unless patients_list.include?(patient)
+# 			handler.puts "#{node_id}\t#{patient}" 
+# 		end
+# 	end
+# 	handler.close
+# 	return patients_list
+# end
+
+def write_missing_hpos(filename, not_found, hpo_black_list)
+	not_found = not_found - hpo_black_list
+	File.open(filename, 'w'){|f| f.puts not_found}
+end
+
+def write_tripartite_network(filename, freq_filename, patients2hpo, number_patients, hpo_stats, thresold, do_freq, patients_by_cluster)
+	patients_list = []
+	handler = File.open(filename, 'w')
+	patients_by_cluster.each do |patients, node_id|
+		patients.each do |patient|
+			patients_list << patient unless patients_list.include?(patient)
+			handler.puts "#{node_id}\t#{patient}" 
+		end
+	end
+	patients2hpo.each do |patient, code|
+		handler = File.open(freq_filename, 'w') if do_freq
+		if patients_list.include?(patient)
+			stat = nil
+			result = nil
+		  code.uniq.each do |c|
+		    stat = hpo_stats[c].length.to_f / number_patients #hpo frequency in patients
+		    result = -Math.log10(stat)
+		    if result >= thresold
+		    	if do_freq
+		    		handler.puts "HPOcode\tFrequency\tIC"
+		    		handler.puts "#{c}\t#{stat}\t#{result}"
+		    	else
+		    		handler.puts "#{c}\t#{patient}"  
+		    	end
+		    end
+		  end
+		end
+	end
+	handler.close
+end
+
+
+
+
 ##############################
 #OPTPARSE
 ##############################
@@ -205,8 +223,8 @@ OptionParser.new do |opts|
     options[:nodes_file] = value
   end 
 
-  options[:output_file] = 'patient2hpo'
-  opts.on("-o", "--output_file", "Output file with patients and their HPO codes") do |value|
+  options[:output_file] = 'hpo_frequency_CI.txt'
+  opts.on("-o", "--output_file", "Output file with HPO codes, their frequency and CI") do |value|
     options[:output_file] = value
   end 
 
@@ -231,55 +249,12 @@ end.parse!
 #MAIN
 ###############################
 hpo_black_list = load_hpo_black_list(options[:excluded_hpo])
-hpo_storage = load_hpo_file(options[:hpo_file], false) #from generalMethods.rb, false to return only hpo_storage
+hpo_storage = load_hpo_file(options[:hpo_file]) #from generalMethods.rb, false to return only hpo_storage
 hpoNameDictionary = create_hpo_dictionary(hpo_storage, hpo_black_list)
 patients2hpo, hpo_stats, not_found, chr_patients_genomic_region = loadPatientFile(options[:patient_file], hpoNameDictionary, options[:parents])
-
-patients_by_cluster = []
-handler = File.open(options[:cluster_file], 'w')
-chr_patients_genomic_region.each do |chrm, genomic_ranges|
-	reference = get_reference(genomic_ranges) # Get putative overlap regions
-	overlapping_patients = overlap_patients(genomic_ranges, reference) # See what patient has match with a overlap region
-	clust_number = 0
-	reference.each_with_index do |ref, i|
-		current_patients = overlapping_patients[i]
-		if current_patients.length > 1
-			ref << chrm
-			node_identifier = "#{chrm}.#{clust_number + 1}.#{options[:mutation_type]}.#{current_patients.length}"
-			patients_by_cluster << [current_patients, node_identifier]
-			ref << node_identifier
-			handler.puts ref.join("\t")
-			clust_number += 1
-		end
-	end
-end
-handler.close
-
-handler = File.open(options[:nodes_file], 'w')
-patients_by_cluster.each do |patients, node_id|
-	patients.each do |patient|
-		handler.puts "#{node_id}\t#{patient}" 
-	end
-end
-not_found = not_found - hpo_black_list
-File.open('missing_hpo_names', 'w'){|f| f.puts not_found}
 number_patients = patients2hpo.length
-handler.close
+patients_by_cluster = generate_cluster_file(options[:cluster_file], chr_patients_genomic_region, options[:mutation_type])
+write_missing_hpos('missing_hpo_names', not_found, hpo_black_list)
+write_tripartite_network('tripartite_network.txt', options[:output_file], patients2hpo, number_patients, hpo_stats, options[:thresold], options[:do_freq], patients_by_cluster)
 
-handler = File.open(options[:output_file], 'w')
-patients2hpo.each do |patient, code|
-	stat = nil
-	result = nil
-  code.uniq.each do |c|
-    stat = hpo_stats[c].length.to_f / number_patients #hpo frequency in patients
-    result = -Math.log10(stat)
-    if result >= options[:thresold]
-    	if options[:do_freq]
-    		handler.puts "#{c}\t#{stat}"
-    	else
-    		handler.puts "#{patient}\t#{c}\t#{result}"  
-    	end
-    end
-  end
-end
-handler.close
+

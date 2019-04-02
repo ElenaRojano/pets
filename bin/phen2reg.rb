@@ -69,9 +69,9 @@ OptionParser.new do |opts|
     options[:html_file] = html_file
   end
 
-  options[:hpo2name_file] = nil
-  opts.on("-f", "--hpo2name_file PATH", "Input hpo2name file, used as dictionary") do |hpo2name_file|
-    options[:hpo2name_file] = hpo2name_file
+  options[:hpo_file] = nil
+  opts.on("-f", "--hpo_file PATH", "Input hp.obo file") do |hpo_file|
+    options[:hpo_file] = hpo_file
   end
 
   options[:information_coefficient] = nil
@@ -214,11 +214,9 @@ end
 ##########################
 #- Loading data
 
-hpo_storage, hpo_dictionary, hpo_metadata = load_hpo_file(options[:hpo2name_file], true)
-# hpo_metadata = load_hpo_metadata(options[:hpo2name_file])
+hpo_storage = load_hpo_file(options[:hpo_file])
 if options[:quality_control]
-  #STDERR.puts hpo_metadata.inspect
-  hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
+  hpo_child_metadata = inverse_hpo_metadata(hpo_storage)
   hpos_ci_values = load_hpo_ci_values(options[:information_coefficient])
 end
 
@@ -249,8 +247,10 @@ predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
   phenotypes_by_patient[patient_number] = patient_hpo_profile
   if options[:hpo_is_name]
+    hpo_dictionary = create_hpo_dictionary(hpo_storage)
     patient_hpo_profile.each_with_index do |name, i|
-      hpo_code = hpo_dictionary[name]
+      hpo_code = hpo_dictionary[name][0]
+      # STDERR.puts hpo_code
       if hpo_code.nil?
         #STDERR.puts "Warning! Invalid HPO name: #{name}"
         hpo_code = nil
