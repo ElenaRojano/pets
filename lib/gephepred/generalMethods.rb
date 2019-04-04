@@ -99,14 +99,15 @@ def create_hpo_dictionary(hpo_storage, hpo_black_list=[])
 		next if hpo_black_list.include?(hpo_code)
 		alt_hpo_code = metadata.shift
 		phenotype = metadata.shift
-		synonyms = metadata.shift 
-		relations = metadata.shift
-		hpo_dictionary[phenotype] = [hpo_code, relations]
-		if !synonyms.nil?
-			synonyms.split('|').each do |syn|
-				hpo_dictionary[syn] = [hpo_code, relations]
-			end
-		end
+		# synonyms = metadata.shift 
+		# relations = metadata.shift
+		# hpo_dictionary[phenotype] = [hpo_code, relations]
+		# if !synonyms.nil?
+		# 	synonyms.split('|').each do |syn|
+		# 		hpo_dictionary[syn] = [hpo_code, relations]
+		# 	end
+		# end
+		hpo_dictionary[phenotype] = hpo_code
 	end
 	return hpo_dictionary
 end
