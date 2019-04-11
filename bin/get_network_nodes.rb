@@ -25,56 +25,51 @@ def load_hpo_black_list(excluded_hpo_file)
 	return excluded_hpos
 end
 
-def loadPatientFile(patient_file, hpo_ontology, parents)
-	patients = {}
-	hpo_stats = {}
+def loadPatientFile(patient_file, hpo_storage, hpo_dictionary, add_parents)
+	patient2phenotype = {}
+	hpo_count = {}
 	not_found = []	
-	chr_patients_genomic_region = {}
+	patients_genomic_region_by_chr = {}
 	File.open(patient_file).each do |line|
 		line.chomp!
 		next if line.include?("#")
 		patient, chr, start, stop, phenotype_profile = line.split("\t", 5)
 		next if phenotype_profile.nil? #For skipping patients without phenotypes
 		phenotypes = phenotype_profile.split('|')
-		phenotypes.each do |phenotype|
-			get_all_hpos(patient, phenotype, patients, hpo_ontology, hpo_stats, not_found, parents)
+		phenotypes.each do |hpo_name|
+			hpo_code = hpo_dictionary[hpo_name]
+			if hpo_code.nil?
+				not_found << hpo_name if !not_found.include?(hpo_name)
+			else
+				get_all_hpos(patient, hpo_code, patient2phenotype, hpo_storage, hpo_count, add_parents)
+			end
 		end
-		query = chr_patients_genomic_region[chr]
 		info = [patient, start.to_i, stop.to_i]
-		if query.nil?
-			chr_patients_genomic_region[chr] = [info]
-		else
-			query << info
-		end
+		add_record(patients_genomic_region_by_chr, chr, info)
 
 	end
-	return patients, hpo_stats, not_found, chr_patients_genomic_region
+	return patient2phenotype, hpo_count, not_found, patients_genomic_region_by_chr
 end
 
-def get_all_hpos(patient, phenotype, patients, hpo_ontology, hpo_stats, not_found, parents)
-	query = hpo_ontology[phenotype]
-	if !query.nil?
-		hpo_code, relations = query
-		query_stats = hpo_stats[hpo_code] # Do tracking of patients that have an hpo
-		if query_stats.nil?
-			hpo_stats[hpo_code] = [patient]
-		elsif !query_stats.include?(patient)
-			query_stats << patient
-		end
-		query_patient = patients[patient]
-		if query_patient.nil?
-		        patients[patient] = [hpo_code]
-		else
-		        query_patient << hpo_code
-		end
-		if !relations.nil? && parents # ADDING PARENTAL PHENOTYPES TO PATIENT
-		    relations.each do |rel_code, rel_name|
-		        get_all_hpos(patient, rel_name, patients, hpo_ontology, hpo_stats, not_found, parents)
-	        end
-	    end
-	else
-		not_found << phenotype if !not_found.include?(phenotype)
+def add_record(hash, key, record)
+	query = hash[key]
+	if query.nil?
+		hash[key] = [record]
+	elsif !query.include?(record)
+		query << record
 	end
+end
+
+# 08/04/19
+def get_all_hpos(patient, hpo_code, patient2phenotype, hpo_storage, hpo_count, add_parents)
+	add_record(hpo_count, hpo_code, patient)
+	add_record(patient2phenotype, patient, hpo_code)
+	if add_parents
+		hpo_parent_codes = hpo_storage[hpo_code][2]
+    	hpo_parent_codes.each do |parent_code|
+			get_all_hpos(patient, parent_code, patient2phenotype, hpo_storage, hpo_count, add_parents)
+    	end	
+    end
 end
 
 def get_reference(genomic_ranges)
@@ -110,80 +105,85 @@ def overlap_patients(genomic_ranges, reference)
 	return overlaps
 end
 
-def generate_cluster_file(output_fileName, chr_patients_genomic_region, mutation_type)
-	patients_by_cluster = []
-	handler = File.open(output_fileName, 'w')
-	chr_patients_genomic_region.each do |chrm, genomic_ranges|
+def generate_cluster_regions(patients_genomic_region_by_chr, mutation_type)
+	patients_by_cluster = {}
+	sors = []
+	patients_genomic_region_by_chr.each do |chrm, genomic_ranges|
 		reference = get_reference(genomic_ranges) # Get putative overlap regions
 		overlapping_patients = overlap_patients(genomic_ranges, reference) # See what patient has match with a overlap region
-		clust_number = 0
+		clust_number = 1
 		reference.each_with_index do |ref, i|
 			current_patients = overlapping_patients[i]
 			if current_patients.length > 1
 				ref << chrm
-				node_identifier = "#{chrm}.#{clust_number + 1}.#{mutation_type}.#{current_patients.length}"
-				patients_by_cluster << [current_patients, node_identifier]
+				node_identifier = "#{chrm}.#{clust_number}.#{mutation_type}.#{current_patients.length}"
 				ref << node_identifier
-				handler.puts ref.join("\t")
+				save_sor(current_patients, node_identifier, patients_by_cluster)
+				sors << ref
 				clust_number += 1
 			end
 		end
 	end
-	handler.close
-	return patients_by_cluster
+	return patients_by_cluster, sors
 end
 
-# def generate_nodes_file(output_nodesFileName, patients_by_cluster)
-# 	patients_list = []
-# 	handler = File.open(output_nodesFileName, 'w')
-# 	patients_by_cluster.each do |patients, node_id|
-# 		patients.each do |patient|
-# 			patients_list << patient unless patients_list.include?(patient)
-# 			handler.puts "#{node_id}\t#{patient}" 
-# 		end
-# 	end
-# 	handler.close
-# 	return patients_list
-# end
-
-def write_missing_hpos(filename, not_found, hpo_black_list)
-	not_found = not_found - hpo_black_list
-	File.open(filename, 'w'){|f| f.puts not_found}
+def save_sor(current_patients, node_identifier, patients_by_cluster)
+	current_patients.each do |patient|
+		add_record(patients_by_cluster, patient, node_identifier)
+	end
 end
 
-def write_tripartite_network(filename, freq_filename, patients2hpo, number_patients, hpo_stats, thresold, do_freq, patients_by_cluster)
-	patients_list = []
-	handler = File.open(filename, 'w')
-	patients_by_cluster.each do |patients, node_id|
-		patients.each do |patient|
-			patients_list << patient unless patients_list.include?(patient)
-			handler.puts "#{node_id}\t#{patient}" 
+def build_tripartite_network(patients2hpo, hpo_stats, ic_threshold, patients_by_cluster)
+	tripartite_network = []
+	patients_by_cluster.each do |patient, node_ids|
+		node_ids.each do |node_id|
+			tripartite_network << [node_id, patient] 
 		end
 	end
+	patients_list = patients_by_cluster.keys
 	patients2hpo.each do |patient, code|
-		handler = File.open(freq_filename, 'w') if do_freq
 		if patients_list.include?(patient)
-			stat = nil
-			result = nil
-		  code.uniq.each do |c|
-		    stat = hpo_stats[c].length.to_f / number_patients #hpo frequency in patients
-		    result = -Math.log10(stat)
-		    if result >= thresold
-		    	if do_freq
-		    		handler.puts "HPOcode\tFrequency\tIC"
-		    		handler.puts "#{c}\t#{stat}\t#{result}"
-		    	else
-		    		handler.puts "#{c}\t#{patient}"  
-		    	end
-		    end
+		  code.each do |c|
+			tripartite_network << [c, patient] if hpo_stats[c].last >= ic_threshold 
 		  end
 		end
 	end
-	handler.close
+	return tripartite_network
 end
 
+def compute_hpo_stats(hpo_count, threshold_ic, patient_number)
+	hpo_stats = {}
+	hpo_count.each do |hpo_code, patient_ids|
+	    hpo_freq = patient_ids.length.fdiv(patient_number) #hpo frequency in patients
+	    hpo_ic = -Math.log10(hpo_freq)
+	    if hpo_ic >= threshold_ic
+	    		hpo_stats[hpo_code] = [hpo_freq, hpo_ic]
+	    end
+	end
+	return hpo_stats
+end
 
+def write_hash(hash, file_path, header = [])
+	File.open(file_path, 'w') do |handler|
+ 		handler.puts header.join("\t") if !header.empty?
+ 		hash.each do |key, array|
+ 			handler.puts "#{key}\t#{array.join("\t")}"
+ 		end
+ 	end
+end
 
+def write_array(array, file_path)
+	File.open(file_path, 'w') do |handler|
+		array.each do |record|
+			if record.class == String
+				line = record
+			else
+				line = record.join("\t")
+			end
+			handler.puts line  
+		end
+	end
+end
 
 ##############################
 #OPTPARSE
@@ -203,11 +203,6 @@ OptionParser.new do |opts|
     options[:excluded_hpo] = excluded_hpo
   end
 
-  options[:do_freq] = false
-  opts.on("-f", "--do_freq", "Switch for calculate HPO frequency instead of IC") do
-    options[:do_freq] = true
-  end 
-
   options[:patient_file] = nil
   opts.on("-i", "--input_file PATH", "Input file with patients for parsing phenotypes to HPO codes") do |value|
     options[:patient_file] = value
@@ -218,14 +213,14 @@ OptionParser.new do |opts|
     options[:mutation_type] = type
   end
 
-  options[:nodes_file] = 'nodes.txt'
-  opts.on("-n", "--nodes_file", "SOR-patient nodes output file for the tripartite network") do |value|
-    options[:nodes_file] = value
+  options[:output_file] = 'tripartite_network.txt'
+  opts.on("-o", "--output_file", "Output file for the tripartite network") do |value|
+    options[:output_file] = value
   end 
 
-  options[:output_file] = 'hpo_frequency_CI.txt'
-  opts.on("-o", "--output_file", "Output file with HPO codes, their frequency and CI") do |value|
-    options[:output_file] = value
+  options[:hpo_stat_file] = 'hpo_stats.txt'
+  opts.on("-s", "--hpo_stat_file", "Output file with HPO codes, their frequency and CI") do |value|
+    options[:hpo_stat_file] = value
   end 
 
   options[:hpo_file] = nil
@@ -233,13 +228,13 @@ OptionParser.new do |opts|
     options[:hpo_file] = value
   end
 
-  options[:parents] = true
+  options[:add_parents] = true
   opts.on("-r", "--no_parents", "Switch for not including HPO parents in results") do
-    options[:parents] = false
+    options[:add_parents] = false
   end 
 
   options[:thresold] = 1
-  opts.on("-t", "--info_thresold FLOAT", "Thresold to discard non informative hpo") do |thresold|
+  opts.on("-t", "--info_thresold FLOAT", "IC thresold to discard non informative hpo") do |thresold|
     options[:thresold] = thresold.to_f
   end
 
@@ -249,12 +244,15 @@ end.parse!
 #MAIN
 ###############################
 hpo_black_list = load_hpo_black_list(options[:excluded_hpo])
-hpo_storage = load_hpo_file(options[:hpo_file]) #from generalMethods.rb, false to return only hpo_storage
-hpoNameDictionary = create_hpo_dictionary(hpo_storage, hpo_black_list)
-patients2hpo, hpo_stats, not_found, chr_patients_genomic_region = loadPatientFile(options[:patient_file], hpoNameDictionary, options[:parents])
-number_patients = patients2hpo.length
-patients_by_cluster = generate_cluster_file(options[:cluster_file], chr_patients_genomic_region, options[:mutation_type])
-write_missing_hpos('missing_hpo_names', not_found, hpo_black_list)
-write_tripartite_network('tripartite_network.txt', options[:output_file], patients2hpo, number_patients, hpo_stats, options[:thresold], options[:do_freq], patients_by_cluster)
+hpo_storage = load_hpo_file(options[:hpo_file], hpo_black_list)
+hpo_dictionary = create_hpo_dictionary(hpo_storage)
+patients2hpo, hpo_count, not_found, chr_patients_genomic_region = loadPatientFile(options[:patient_file], hpo_storage, hpo_dictionary, options[:add_parents])
+hpo_stats = compute_hpo_stats(hpo_count, options[:thresold], patients2hpo.length)
+patients_by_cluster, sors = generate_cluster_regions(chr_patients_genomic_region, options[:mutation_type])
+tripartite_network = build_tripartite_network(patients2hpo, hpo_stats, options[:thresold], patients_by_cluster)
 
+write_array(not_found - hpo_black_list, 'missing_hpo_names')
+write_array(sors, options[:cluster_file])
+write_hash(hpo_stats, options[:hpo_stat_file], %w[HPOcode Frequency IC])
+write_array(tripartite_network, options[:output_file])
 
