@@ -22,3 +22,4 @@ pdf(file.path(output, 'scatterplot.pdf'))
 		labs(size = size_tag) +
 		theme(axis.text.x = element_text(angle = 45, hjust = 1))
 dev.off()
+

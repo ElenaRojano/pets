@@ -16,15 +16,6 @@ require "benchmark"
 #METHODS
 ###############################
 
-def load_hpo_black_list(excluded_hpo_file)
-	excluded_hpos = []
-	File.open(excluded_hpo_file).each do |line|
-		line.chomp!
-		excluded_hpos << line
-	end
-	return excluded_hpos
-end
-
 def loadPatientFile(patient_file, hpo_storage, hpo_dictionary, add_parents)
 	patient2phenotype = {}
 	hpo_count = {}
@@ -153,14 +144,18 @@ end
 
 def compute_hpo_stats(hpo_count, threshold_ic, patient_number)
 	hpo_stats = {}
+	patient_hpo_ic = []
 	hpo_count.each do |hpo_code, patient_ids|
 	    hpo_freq = patient_ids.length.fdiv(patient_number) #hpo frequency in patients
 	    hpo_ic = -Math.log10(hpo_freq)
 	    if hpo_ic >= threshold_ic
 	    		hpo_stats[hpo_code] = [hpo_freq, hpo_ic]
 	    end
+	    patient_ids.each do |patient_id|
+	    	patient_hpo_ic << [patient_id, hpo_code, hpo_ic]
+	    end
 	end
-	return hpo_stats
+	return hpo_stats, patient_hpo_ic.sort{|a,b| a.first.to_i <=> b.first.to_i}
 end
 
 def write_hash(hash, file_path, header = [])
@@ -247,7 +242,7 @@ hpo_black_list = load_hpo_black_list(options[:excluded_hpo])
 hpo_storage = load_hpo_file(options[:hpo_file], hpo_black_list)
 hpo_dictionary = create_hpo_dictionary(hpo_storage)
 patients2hpo, hpo_count, not_found, chr_patients_genomic_region = loadPatientFile(options[:patient_file], hpo_storage, hpo_dictionary, options[:add_parents])
-hpo_stats = compute_hpo_stats(hpo_count, options[:thresold], patients2hpo.length)
+hpo_stats, patient_hpo_ic = compute_hpo_stats(hpo_count, options[:thresold], patients2hpo.length)
 patients_by_cluster, sors = generate_cluster_regions(chr_patients_genomic_region, options[:mutation_type])
 tripartite_network = build_tripartite_network(patients2hpo, hpo_stats, options[:thresold], patients_by_cluster)
 
@@ -255,4 +250,5 @@ write_array(not_found - hpo_black_list, 'missing_hpo_names')
 write_array(sors, options[:cluster_file])
 write_hash(hpo_stats, options[:hpo_stat_file], %w[HPOcode Frequency IC])
 write_array(tripartite_network, options[:output_file])
+write_array(patient_hpo_ic, 'filtered_hpo.txt')
 

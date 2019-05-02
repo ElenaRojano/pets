@@ -216,7 +216,7 @@ end
 
 hpo_storage = load_hpo_file(options[:hpo_file])
 if options[:quality_control]
-  hpo_child_metadata = inverse_hpo_metadata(hpo_storage)
+  hpo_child_metadata = get_child_parent_relations(hpo_storage)
   hpos_ci_values = load_hpo_ci_values(options[:information_coefficient])
 end
 
@@ -246,21 +246,20 @@ phenotypes_by_patient = {}
 predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
   phenotypes_by_patient[patient_number] = patient_hpo_profile
+  # STDERR.puts patient_hpo_profile.inspect
   if options[:hpo_is_name]
+    translated_hpos = []
     hpo_dictionary = create_hpo_dictionary(hpo_storage)
     patient_hpo_profile.each_with_index do |name, i|
-      hpo_code = hpo_dictionary[name][0]
-      # STDERR.puts hpo_code
+      hpo_code = hpo_dictionary[name]
       if hpo_code.nil?
         #STDERR.puts "Warning! Invalid HPO name: #{name}"
         hpo_code = nil
       end
       patient_hpo_profile[i] = hpo_code
-    end
-    patient_hpo_profile.compact!
-  end
-
-
+     end
+     patient_hpo_profile.compact!
+   end
 
   #HPO quality control
   #---------------------------
