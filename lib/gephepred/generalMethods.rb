@@ -101,6 +101,15 @@ def load_hpo_file(hpo_file, hpo_black_list=[])
 	return hpo_storage
 end
 
+def load_hpo_black_list(excluded_hpo_file)
+	excluded_hpos = []
+	File.open(excluded_hpo_file).each do |line|
+		line.chomp!
+		excluded_hpos << line
+	end
+	return excluded_hpos
+end
+
 def create_hpo_dictionary(hpo_storage)
 	hpo_dictionary = {}
 	hpo_storage.each do |hpo, metadata|

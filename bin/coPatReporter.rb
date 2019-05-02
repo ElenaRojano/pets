@@ -66,14 +66,14 @@ def get_field_numbers2extract(field_names, fields2extract)
   end
 end
 
-def format_patient_data(patient_data, options, name2code_dictionary, code2name_dictionary, hpo_parent_child_relations)
+def format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
   all_hpo = []
   suggested_childs = {}
-  patient_data.each do |pat_id, patient_record |
+  patient_data.each do |pat_id, patient_record|
     string_hpos, chr, start, stop = patient_record
     hpos = string_hpos.split(options[:hpo_separator])
     translate_hpo_names2codes(hpos, name2code_dictionary, pat_id) if options[:hpo_names]
-    suggested_childs[pat_id] = check_hpo_codes(hpos, code2name_dictionary, hpo_parent_child_relations, pat_id)
+    suggested_childs[pat_id] = check_hpo_codes(hpos, hpo_storage, hpo_parent_child_relations, pat_id)
     all_hpo.concat(hpos)
     patient_record[HPOS] = hpos
     patient_record[START] = start.to_i if !start.nil?
@@ -96,15 +96,15 @@ def translate_hpo_names2codes(hpos, hpo_dictionary, pat_id)
   hpos.concat(hpo_codes)
 end
 
-def check_hpo_codes(hpos, code2name_dictionary, hpo_parent_child_relations, pat_id)
+def check_hpo_codes(hpos, hpo_storage, hpo_parent_child_relations, pat_id)
   more_specific_hpo = []
   hpos.each_with_index do |hpo_code, i|
-    hpo_data = code2name_dictionary[hpo_code]
+    hpo_data = hpo_storage[hpo_code]
     if hpo_data.nil?
       hpos[i] = nil
       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODE '#{hpo_code}'. Rejected."
     else
-      main_hpo_code, name, relations = hpo_data
+      main_hpo_code, name = hpo_data
       hpos[i] = main_hpo_code # change from alternate hpo codes to the main ones
       childs = hpo_parent_child_relations[main_hpo_code]
       if childs.nil?
@@ -260,10 +260,10 @@ def hpo_stats(all_hpo_profiles)
   return hpo_stats[0..20]
 end
 
-def translate_hpo_codes2names(all_hpo_profiles, code2name_dictionary)
+def translate_hpo_codes2names(all_hpo_profiles, hpo_storage)
   all_hpo_profiles.each do |profile|
     profile.each_with_index do |hpo, i|
-      hpo_data = code2name_dictionary[hpo]
+      hpo_data = hpo_storage[hpo]
       if hpo_data.nil?
         STDERR.puts "WARNING: hpo code '#{hpo}' not exists."
       else
@@ -315,14 +315,34 @@ options = {}
 OptionParser.new do |opts|
   opts.banner = "Usage: #{__FILE__} [options]"
 
-  options[:input_file] = nil
-  opts.on("-i", "--input_file PATH", "Input file with patient data") do |data|
-    options[:input_file] = data
+  options[:clusters2show_detailed_phen_data] = 3
+  opts.on("-C", "--clusters2show INTEGER", "How many patient clusters are show in detailed phenotype cluster data section. Default 3") do |data|
+    options[:clusters2show_detailed_phen_data] = data.to_i
   end
 
-  options[:output_file] = nil
-  opts.on("-o", "--output_file PATH", "Output file with patient data") do |data|
-    options[:output_file] = data
+  options[:chromosome_col] = nil
+  opts.on("-c", "--chromosome_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the chromosome") do |data|
+    options[:chromosome_col] = data
+  end
+
+  options[:pat_id_col] = nil
+  opts.on("-d", "--pat_id_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the patient id") do |data|
+    options[:pat_id_col] = data
+  end
+
+  options[:excluded_hpo] = nil
+  opts.on("-E", "--excluded_hpo PATH", "List of HPO phenotypes to exclude (low informative)") do |excluded_hpo|
+    options[:excluded_hpo] = excluded_hpo
+  end
+
+  options[:end_col] = nil
+  opts.on("-e", "--end_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the end mutation coordinate") do |data|
+    options[:end_col] = data
+  end
+
+  options[:clusters2graph] = 30
+  opts.on("-g", "--clusters2graph INTEGER", "How may patient clusters are plotted in cluster plots. Default 30") do |data|
+    options[:clusters2graph] = data.to_i
   end
 
   options[:header] = true
@@ -331,14 +351,29 @@ OptionParser.new do |opts|
     options[:header] = false
   end
 
-  options[:hpo_col] = nil
-  opts.on("-p", "--hpo_term_col INTEGER/STRING", "Column name if header true or 0-based position of the column with the HPO terms") do |data|
-  	options[:hpo_col] = data
+  options[:input_file] = nil
+  opts.on("-i", "--input_file PATH", "Input file with patient data") do |data|
+    options[:input_file] = data
   end
 
   options[:hpo_names] = false
   opts.on("-n", "--hpo_names", "Define if the input HPO are human readable names. Default false") do
-  	options[:hpo_names] = true
+    options[:hpo_names] = true
+  end
+
+  options[:output_file] = nil
+  opts.on("-o", "--output_file PATH", "Output file with patient data") do |data|
+    options[:output_file] = data
+  end
+
+  options[:hpo_file] = nil
+  opts.on("-P", "--hpo_file PATH", "Input HPO file for extracting HPO codes") do |value|
+    options[:hpo_file] = value
+  end
+
+  options[:hpo_col] = nil
+  opts.on("-p", "--hpo_term_col INTEGER/STRING", "Column name if header true or 0-based position of the column with the HPO terms") do |data|
+  	options[:hpo_col] = data
   end
 
   options[:hpo_separator] = '|'
@@ -346,34 +381,9 @@ OptionParser.new do |opts|
   	options[:hpo_separator] = data
   end
 
-  options[:chromosome_col] = nil
-  opts.on("-c", "--chromosome_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the chromosome") do |data|
-  	options[:chromosome_col] = data
-  end
-
   options[:start_col] = nil
   opts.on("-s", "--start_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the start mutation coordinate") do |data|
   	options[:start_col] = data
-  end
-
-  options[:end_col] = nil
-  opts.on("-e", "--end_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the end mutation coordinate") do |data|
-  	options[:end_col] = data
-  end
-  
-  options[:pat_id_col] = nil
-  opts.on("-d", "--pat_id_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the patient id") do |data|
-  	options[:pat_id_col] = data
-  end
-
-  options[:clusters2show_detailed_phen_data] = 3
-  opts.on("-C", "--clusters2show INTEGER", "How many patient clusters are show in detailed phenotype cluster data section. Default 3") do |data|
-    options[:clusters2show_detailed_phen_data] = data.to_i
-  end
-
-  options[:clusters2graph] = 30
-  opts.on("-g", "--clusters2graph INTEGER", "How may patient clusters are plotted in cluster plots. Default 30") do |data|
-    options[:clusters2graph] = data.to_i
   end
 
 end.parse!
@@ -391,30 +401,41 @@ cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
 cluster_chromosome_data_file = File.join(temp_folder, 'cluster_chromosome_data.txt')
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
-#load hpo dictionaries
-hpo_dictionary_file = ENV['hpo2name_file']
-hpo_dictionary_file = HPO2NAME_DICTIONARY if hpo_dictionary_file.nil?
-code2name_dictionary = load_hpo_metadata(hpo_dictionary_file)
-hpo_parent_child_relations = inverse_hpo_metadata(code2name_dictionary)
-name2code_dictionary = {}
-name2code_dictionary = load_hpo_dictionary_name2code(hpo_dictionary_file) if options[:hpo_names]
+# LOAD HPO DATA
+#-------------------------
 
+# #load hpo dictionaries
+hpo_black_list = load_hpo_black_list(options[:excluded_hpo])
+hpo_storage = load_hpo_file(options[:hpo_file], hpo_black_list)
+hpo_parent_child_relations = get_child_parent_relations(hpo_storage)
+name2code_dictionary = create_hpo_dictionary(hpo_storage) if options[:hpo_names]
+
+
+# hpo_dictionary_file = ENV['hpo2name_file']
+# hpo_dictionary_file = HPO2NAME_DICTIONARY if hpo_dictionary_file.nil?
+# hpo_storage = load_hpo_metadata(hpo_dictionary_file)
+# hpo_parent_child_relations = inverse_hpo_metadata(hpo_storage)
+# name2code_dictionary = {}
+# name2code_dictionary = load_hpo_dictionary_name2code(hpo_dictionary_file) if options[:hpo_names]
 
 patient_data = load_patient_cohort(options)
-cohort_hpos, suggested_childs = format_patient_data(patient_data, options, name2code_dictionary, code2name_dictionary, hpo_parent_child_relations)
+cohort_hpos, suggested_childs = format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
 pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
 write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
+
 system("get_clusters.R #{matrix_file} #{temp_folder}") if !File.exists?(clustered_patients_file)
 clustered_patients = load_clustered_patients(clustered_patients_file)
 all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data)
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("plot_boxplot.R #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
+# Process.exit
+
 if !options[:chromosome_col].nil?
   write_cluster_chromosome_data(cluster_data_by_chromosomes, cluster_chromosome_data_file, options[:clusters2graph])
   system("plot_scatterplot.R #{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
 end
 all_hpo_profiles = get_hpo_profile(patient_data)
-translate_hpo_codes2names(all_hpo_profiles, code2name_dictionary)
+translate_hpo_codes2names(all_hpo_profiles, hpo_storage)
 summary_stats = get_summary_stats(patient_data, cohort_hpos, all_hpo_profiles)
 write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
 summary_stats << ['Number of clusters with mutations accross > 1 chromosomes', multi_chromosome_patients] if !options[:chromosome_col].nil?
