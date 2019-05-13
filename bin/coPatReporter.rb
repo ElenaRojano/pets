@@ -227,9 +227,16 @@ end
 
 def get_summary_stats(patient_data, cohort_hpos, all_hpo_profiles)
   stats = []
+  ids = []
   stats << ['Unique HPOs', cohort_hpos.length]
-  n_pat = patient_data.length
-  stats << ['Patient number', n_pat]
+  patient_ids = patient_data.keys
+  patient_ids.each do |pat_id| 
+    id, count = pat_id.split('_i')
+    ids << id
+  end
+  # n_pat = patient_data.length
+  n_pat = ids.uniq.length
+  stats << ['Number of patients', n_pat]
   all_hpo_prof_lengths = all_hpo_profiles.map{|p| p.length}.sort
   stats << ['HPOs per patient (average)', all_hpo_prof_lengths.inject(0){|sum, n| sum + n}.fdiv(n_pat)]
   hpo_pat90 = nil
@@ -408,6 +415,8 @@ Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 hpo_black_list = load_hpo_black_list(options[:excluded_hpo])
 hpo_storage = load_hpo_file(options[:hpo_file], hpo_black_list)
 hpo_parent_child_relations = get_child_parent_relations(hpo_storage)
+# STDERR.puts hpo_parent_child_relations.inspect
+# Process.exit
 name2code_dictionary = create_hpo_dictionary(hpo_storage) if options[:hpo_names]
 
 
