@@ -98,6 +98,8 @@ def load_hpo_file(hpo_file, hpo_black_list=[])
 		end
 	end
 	add_record2storage(hpo_storage, id, name, is_a, syn, alt_ids, hpo_black_list)
+	# STDERR.puts hpo_storage.inspect
+	# Process.exit
 	return hpo_storage
 end
 
@@ -126,12 +128,12 @@ def get_child_parent_relations(hpo_storage)
 	# for getting hpo childs
 	storage_child = {}
 	hpo_storage.each do |hpo_code, hpo_data|
-		main_code, hpo_name, synonyms, parents = hpo_data
-		parents.each do |par_hpo_code, par_hpo_name|
+		id, name, is_a, syn = hpo_data
+		is_a.each do |par_hpo_code|
 			query = storage_child[par_hpo_code]
-			hpo_child = [main_code, hpo_name]
+			hpo_child = [id, name]
 			if query.nil?
-				storage_child[par_hpo_code] = [par_hpo_name, [hpo_child]]
+				storage_child[par_hpo_code] = [hpo_child]
 			else
 				query.last << hpo_child
 			end
@@ -139,6 +141,29 @@ def get_child_parent_relations(hpo_storage)
 	end
 	return storage_child
 end
+
+
+
+# def get_child_parent_relations(hpo_storage)
+# 	# for getting hpo childs
+# 	storage_child = {}
+# 	hpo_storage.each do |hpo_code, hpo_data|
+# 		STDERR.puts hpo_data[3].inspect
+# 		Process.exit
+# 		main_code, hpo_name, synonyms, parents = hpo_data
+# 		parents.each do |par_hpo_code, par_hpo_name|
+# 			query = storage_child[par_hpo_code]
+# 			hpo_child = [main_code, hpo_name]
+# 			if query.nil?
+# 				storage_child[par_hpo_code] = [par_hpo_name, [hpo_child]]
+# 			else
+# 				query.last << hpo_child
+# 			end
+# 		end
+# 	end
+	
+# 	return storage_child
+# end
 
 
 def load_hpo_ci_values(information_coefficient_file)
