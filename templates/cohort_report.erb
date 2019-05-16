@@ -19,9 +19,48 @@
 </div>
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">Cohort genome coverage analysis</h1>
+	<p> Distribution of the genome coverage of all mutations characterized in the cohort. Second figure shows the same results for SORs.</p>
+	<%= 
+		plot = File.join(@hash_vars[:temp_folder],'coverage_plot.pdf')
+		if File.exists?(plot)
+			embed_pdf(File.join(@hash_vars[:temp_folder],'coverage_plot.pdf'), 'width="800" height="800"') 
+		else
+			"<p> No genomic data was specified for this cohort </p>"
+		end
+	%>
+	<%= 
+		plot = File.join(@hash_vars[:temp_folder],'sor_coverage_plot.pdf')
+		if File.exists?(plot)
+			embed_pdf(File.join(@hash_vars[:temp_folder],'sor_coverage_plot.pdf'), 'width="800" height="800"') 
+		else
+			"<p> No genomic data was specified for this cohort </p>"
+		end
+	%>
+	<div style="overflow: hidden">
+	<h1 style="text-align: center; background-color:#d6eaf8">Distribution of mutations</h1>
+	<p> Distribution of all mutations along the genome (Length) and the number of patients that have at least one of them (Count). Second figure shows the same for SORs. </p>
+		<%=
+			if !@hash_vars[:all_cnvs_length].nil?
+				sccater2D(id: :all_cnvs_length, header: false, row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
+			else
+				"<p> No genomic data was specified for this cohort </p>"
+			end
+		%>
+		<%=
+			if !@hash_vars[:all_sor_length].nil?
+				sccater2D(id: :all_sor_length, header: false, row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
+			else
+				"<p> No genomic data was specified for this cohort </p>"
+			end
+		%>
+	</div>
+</div>
+
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Clustering patients by HPO profile</h1>
 	<p> All patients are clustered using their HPO profiles. First figure shows the information coefficient distribution for the top clusters. Second figure shows which chromosomes are affected in the patients for each top cluster. </p>
-	<%= embed_pdf(File.join(@hash_vars[:temp_folder],'boxplot.pdf'), 'width="800" height="800"') %>
 	<%= 
 		plot = File.join(@hash_vars[:temp_folder],'scatterplot.pdf')
 		if File.exists?(plot)
@@ -30,6 +69,8 @@
 			"<p> Genomic data was not specified </p>"
 		end
 	%>
+	<%= embed_pdf(File.join(@hash_vars[:temp_folder],'boxplot.pdf'), 'width="800" height="800"') %>
+
 </div>
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
