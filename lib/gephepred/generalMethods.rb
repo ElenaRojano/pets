@@ -144,12 +144,19 @@ end
 
 def compute_IC_values(patient_data, total_patients)
 	patients_per_hpo = Hash.new(0)
+	last_patient_ID = ''
 	patient_data.each do |patient_ID, metadata|
-		hpos, chr, start, stop = metadata
-		hpos.each do |h|
-			patients_per_hpo[h] += 1
+		patient, count = patient_ID.split('_i')
+		if patient != last_patient_ID
+			hpos, chr, start, stop = metadata
+			hpos.each do |h|
+				patients_per_hpo[h] += 1
+			end
 		end
+		last_patient_ID = patient
 	end
+	# STDERR.puts patients_per_hpo.inspect
+	# Process.exit
 	patients_per_hpo.each do |hpo, patient_number|
 		patients_per_hpo[hpo] = -Math.log10(patient_number.fdiv(total_patients))
 	end

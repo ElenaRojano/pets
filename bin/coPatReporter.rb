@@ -194,6 +194,7 @@ def process_clustered_patients(options, clustered_patients, patient_data) # get 
     end
     top_cluster_phenotypes << all_phens if processed_clusters < options[:clusters2show_detailed_phen_data]
     all_ics << profile_ics
+    # STDERR.puts [cluster_id, num_of_patients, chr, count].inspect
     if !options[:chromosome_col].nil?
       multi_chromosome_patients += num_of_patients if chrs.length > 1
       chrs.each do |chr, count|
@@ -202,6 +203,7 @@ def process_clustered_patients(options, clustered_patients, patient_data) # get 
     end
     processed_clusters += 1
   end
+  # STDERR.puts cluster_data_by_chromosomes.inspect
   return all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients
 end
 
@@ -209,7 +211,8 @@ def get_profile_ic(hpo_names, phenotype_ic)
   ic = 0
   profile_length = 0
   hpo_names.each do |hpo_id|
-    hpo_ic = phenotype_ic[hpo_id] 
+    hpo_ic = phenotype_ic[hpo_id]
+    # STDERR.puts phenotype_ic.inspect
     ic += hpo_ic if !hpo_ic.nil?
     profile_length += 1
   end
@@ -234,7 +237,7 @@ def write_cluster_chromosome_data(cluster_data, cluster_chromosome_data_file, li
   File.open(cluster_chromosome_data_file, 'w') do |f|
     f.puts %w[cluster_id chr count].join("\t")
     index = 0
-    last_id = cluster_data.first.first
+    last_id = cluster_data.first.first unless cluster_data.empty?
     cluster_data.each do |cluster_id, patient_number, chr, count|
       index += 1 if cluster_id != last_id 
       break if index == limit
@@ -508,7 +511,9 @@ if !options[:chromosome_col].nil?
     summary_stats << ['Patient average per region', pats_per_region]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
     write_coverage_data(coverage_to_plot, coverage_to_plot_file)
-    system("plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}")
+    
+    cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}"
+    system(cmd)
 
     ###2. Process SORs
     raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, 1)
