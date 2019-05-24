@@ -89,20 +89,6 @@ def format_patient_data(patient_data, options, name2code_dictionary, hpo_storage
   return all_hpo.uniq, suggested_childs, rejected_hpos.uniq
 end
 
-# def translate_hpo_names2codes(hpos, hpo_dictionary, pat_id)
-#   hpo_codes = []
-#   hpos.each_with_index do |hpo_name, i|
-#     hpo_code = hpo_dictionary[hpo_name]
-#     if hpo_code.nil?
-#       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo NAME '#{hpo_name}'. Rejected."
-#     else
-#       hpo_codes << hpo_code
-#     end
-#   end
-#   hpos.clear
-#   hpos.concat(hpo_codes)
-# end
-
 def translate_hpo_names2codes(hpos, hpo_dictionary, pat_id, rejected_hpos)
   hpo_codes = []
   hpos.each_with_index do |hpo_name, i|
@@ -394,6 +380,11 @@ OptionParser.new do |opts|
     options[:end_col] = data
   end
 
+  options[:patients_filter] = 1
+  opts.on("-f", "--patients_filter INTEGER", "Number of patients with HPO-SOR connections. Default 1") do |data|
+    options[:patients_filter] = data.to_i
+  end
+
   options[:clusters2graph] = 30
   opts.on("-g", "--clusters2graph INTEGER", "How may patient clusters are plotted in cluster plots. Default 30") do |data|
     options[:clusters2graph] = data.to_i
@@ -502,8 +493,14 @@ if !options[:chromosome_col].nil?
   #Prepare data to plot coverage
   if options[:coverage_analysis]
     processed_patient_data = process_patient_data(patient_data)
-    patients_by_cluster, sors = generate_cluster_regions(processed_patient_data, 'A', 0)
+    patients_by_cluster, sors = generate_cluster_regions(processed_patient_data, 'A', options[:patients_filter])
+    total_patients_sharing_sors = []
+    all_patients = patients_by_cluster.keys
+    all_patients.each do |identifier|
+      total_patients_sharing_sors << identifier.split('_i').first
+    end
     all_cnvs_length = get_cnvs_length(patient_data)
+    
     ###1. Process CNVs
     raw_coverage, n_cnv, nt, pats_per_region = calculate_coverage(sors)
     summary_stats << ['Number of genome windows', n_cnv]
@@ -511,12 +508,12 @@ if !options[:chromosome_col].nil?
     summary_stats << ['Patient average per region', pats_per_region]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
     write_coverage_data(coverage_to_plot, coverage_to_plot_file)
-    
     cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}"
     system(cmd)
 
     ###2. Process SORs
     raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, 1)
+    summary_stats << ["Patients sharing >= #{options[:patients_filter]} SOR", total_patients_sharing_sors.uniq.length]
     summary_stats << ['Number of sor with >= 2 patients', n_sor]
     summary_stats << ['Nucleotides affected by mutations', nt]
     summary_stats << ['Patient average per region', pats_per_region]

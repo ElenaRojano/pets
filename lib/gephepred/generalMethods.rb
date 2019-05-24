@@ -468,6 +468,7 @@ def overlap_patients(genomic_ranges, reference)
 end
 
 def generate_cluster_regions(patients_genomic_region_by_chr, mutation_type, pat_per_reg = 1)
+	patients_out_of_cluster = 0
 	patients_by_cluster = {}
 	sors = []
 	patients_genomic_region_by_chr.each do |chrm, genomic_ranges|
