@@ -267,7 +267,8 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   #hpo_metadata = []
   if options[:quality_control]
     #characterised_hpos, hpo_metadata = hpo_quality_control(options[:prediction_data], options[:hpo2name_file], options[:information_coefficient])
-    characterised_hpos, hpo_metadata = hpo_quality_control(patient_hpo_profile, hpo_metadata, hpo_child_metadata, hpos_ci_values)
+    # characterised_hpos, hpo_storage = hpo_quality_control(patient_hpo_profile, hpo_storage, hpo_child_metadata, hpos_ci_values)
+    characterised_hpos = hpo_quality_control(patient_hpo_profile, hpo_storage, hpo_child_metadata, hpos_ci_values)
     output_quality_control = File.open(options[:output_quality_control], "w")
     header = ["HPO name", "HPO code", "Exists?", "CI value", "Is child of", "Childs"]
     output_quality_control.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
@@ -369,7 +370,8 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
 
   #Creating html report
   #-------------------
-  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_metadata, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
+  ####PLEASE CHECK THIS METHOD!
+  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_storage, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
 end # end each_with_index
 
 if options[:write_hpo_recovery_file]

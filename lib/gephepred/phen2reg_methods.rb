@@ -236,7 +236,6 @@ def hpo_quality_control(prediction_data, hpo_metadata, hpo_child_metadata, hpos_
 	prediction_data.each do |hpo_code|
 		tmp = []
 		ci = hpos_ci_values[hpo_code]
-		#STDERR.puts hpo_metadata[hpo_code]
 		main_hpo_code, hpo_name, relations = hpo_metadata[hpo_code]
 		tmp << hpo_name # col hpo name
 		tmp << hpo_code # col hpo code
@@ -254,12 +253,13 @@ def hpo_quality_control(prediction_data, hpo_metadata, hpo_child_metadata, hpos_
 		if childs.nil?
 			childs = []
 		else
-			childs = childs.last
+			childs = childs
 		end
 		tmp << childs
 		characterised_hpos << tmp
 	end
-	return characterised_hpos, hpo_metadata
+	# return characterised_hpos, hpo_metadata
+	return characterised_hpos
 end
 
 def check_parents(relations, prediction_data, hpo_metadata)

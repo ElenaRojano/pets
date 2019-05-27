@@ -119,7 +119,7 @@ def check_hpo_codes(hpos, hpo_storage, hpo_parent_child_relations, pat_id, rejec
       if childs.nil?
         specific_childs = []
       else
-        specific_childs = childs.last
+        specific_childs = childs
       end
       more_specific_hpo << [[main_hpo_code, name], specific_childs]
     end
@@ -259,9 +259,9 @@ def get_summary_stats(patient_data, cohort_hpos, all_hpo_profiles)
     ids << id
   end
   n_pat = ids.uniq.length
-  stats << ['Number of patients', n_pat]
+  stats << ['Number of patients in the cohort', n_pat]
   all_hpo_prof_lengths = all_hpo_profiles.map{|p| p.length}.sort
-  stats << ['HPOs per patient (average)', all_hpo_prof_lengths.inject(0){|sum, n| sum + n}.fdiv(n_pat)]
+  stats << ['HPOs per patient (average)', all_hpo_prof_lengths.inject(0){|sum, n| sum + n}.fdiv(n_pat).round(4)]
   hpo_pat90 = nil
   rate = 0
   count = 0
@@ -334,7 +334,7 @@ def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_eva
       csv << ["", ""]
     end
   end
-  summary_stats << ['Percentage of defined HPOs that have more specific childs', parent_hpo_count.fdiv(hpo_count) * 100]
+  summary_stats << ['Percentage of defined HPOs that have more specific childs', (parent_hpo_count.fdiv(hpo_count) * 100).round(4)]
 end
 
 ##########################
@@ -380,8 +380,8 @@ OptionParser.new do |opts|
     options[:end_col] = data
   end
 
-  options[:patients_filter] = 1
-  opts.on("-f", "--patients_filter INTEGER", "Number of patients with HPO-SOR connections. Default 1") do |data|
+  options[:patients_filter] = 0
+  opts.on("-f", "--patients_filter INTEGER", "Minimum number of patients sharing SORs. Default 0") do |data|
     options[:patients_filter] = data.to_i
   end
 
@@ -505,7 +505,7 @@ if !options[:chromosome_col].nil?
     raw_coverage, n_cnv, nt, pats_per_region = calculate_coverage(sors)
     summary_stats << ['Number of genome windows', n_cnv]
     summary_stats << ['Nucleotides affected by mutations', nt]
-    summary_stats << ['Patient average per region', pats_per_region]
+    summary_stats << ['Patient average per region', pats_per_region.round(4)]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
     write_coverage_data(coverage_to_plot, coverage_to_plot_file)
     cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}"
@@ -516,7 +516,7 @@ if !options[:chromosome_col].nil?
     summary_stats << ["Patients sharing >= #{options[:patients_filter]} SOR", total_patients_sharing_sors.uniq.length]
     summary_stats << ['Number of sor with >= 2 patients', n_sor]
     summary_stats << ['Nucleotides affected by mutations', nt]
-    summary_stats << ['Patient average per region', pats_per_region]
+    # summary_stats << ['Patient average per region', pats_per_region]
     sor_coverage_to_plot = get_final_coverage(raw_sor_coverage, options[:bin_size])
     write_coverage_data(sor_coverage_to_plot, sor_coverage_to_plot_file)
     system("plot_area.R -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}")
@@ -525,19 +525,43 @@ if !options[:chromosome_col].nil?
 end
 #----------------------------------
 #Report
+total_patients = 0
+new_cluster_phenotypes = {}
+phenotypes_frequency = Hash.new(0)
+top_cluster_phenotypes.each_with_index do |cluster, clusterID|
+  total_patients = cluster.length
+  cluster.each do |phenotypes|
+    phenotypes.each do |p|
+      phenotypes_frequency[p] += 1
+    end
+  end
+  new_cluster_phenotypes[clusterID] = [total_patients, phenotypes_frequency.keys, phenotypes_frequency.values.map{|v| v.fdiv(total_patients) * 100}]
+  phenotypes_frequency = Hash.new(0)
+end
 
 container = {
   :temp_folder => temp_folder,
-  :top_cluster_phenotypes => top_cluster_phenotypes.length,
+  # :top_cluster_phenotypes => top_cluster_phenotypes.length,
   :summary_stats => summary_stats,
   :hpo_stats => hpo_stats,
   :all_cnvs_length => all_cnvs_length,
-  :all_sor_length => all_sor_length
+  :all_sor_length => all_sor_length,
+  :new_cluster_phenotypes => new_cluster_phenotypes.keys.length
  }
-top_cluster_phenotypes.each_with_index do |cluster, i|
-  clust_pr = cluster.map{|pr| [pr.join(', ')] }
-  container["clust_#{i}"] = clust_pr
+# top_cluster_phenotypes.each_with_index do |cluster, i|
+#   clust_pr = cluster.map{|pr| [pr.join(', ')] }
+#   container["clust_#{i}"] = clust_pr
+# end
+
+clust_info = []
+new_cluster_phenotypes.each do |clusterID, info|
+    phens = info[1].join(', ')
+    freqs = info[2].map{|a| a.round(4)}.join(', ')
+    clust_info << [info[0], phens, freqs]
+    container["clust_#{clusterID}"] = clust_info
+    clust_info = []
 end
+
 template = File.open(File.join(REPORT_FOLDER, 'cohort_report.erb')).read
 report = Report_html.new(container, 'Cohort quality report')
 report.build(template)

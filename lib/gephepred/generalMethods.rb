@@ -129,13 +129,13 @@ def get_child_parent_relations(hpo_storage)
 	storage_child = {}
 	hpo_storage.each do |hpo_code, hpo_data|
 		id, name, is_a, syn = hpo_data
+		hpo_child = [id, name]
 		is_a.each do |par_hpo_code|
 			query = storage_child[par_hpo_code]
-			hpo_child = [id, name]
 			if query.nil?
 				storage_child[par_hpo_code] = [hpo_child]
 			else
-				query.last << hpo_child
+				query << hpo_child
 			end
 		end
 	end
