@@ -380,7 +380,7 @@ OptionParser.new do |opts|
     options[:end_col] = data
   end
 
-  options[:patients_filter] = 0
+  options[:patients_filter] = 2
   opts.on("-f", "--patients_filter INTEGER", "Minimum number of patients sharing SORs. Default 0") do |data|
     options[:patients_filter] = data.to_i
   end
@@ -493,7 +493,7 @@ if !options[:chromosome_col].nil?
   #Prepare data to plot coverage
   if options[:coverage_analysis]
     processed_patient_data = process_patient_data(patient_data)
-    patients_by_cluster, sors = generate_cluster_regions(processed_patient_data, 'A', options[:patients_filter])
+    patients_by_cluster, sors = generate_cluster_regions(processed_patient_data, 'A', 0)
     total_patients_sharing_sors = []
     all_patients = patients_by_cluster.keys
     all_patients.each do |identifier|
@@ -512,9 +512,9 @@ if !options[:chromosome_col].nil?
     system(cmd)
 
     ###2. Process SORs
-    raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, 1)
-    summary_stats << ["Patients sharing >= #{options[:patients_filter]} SOR", total_patients_sharing_sors.uniq.length]
-    summary_stats << ['Number of sor with >= 2 patients', n_sor]
+    raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, options[:patients_filter] - 1)
+    summary_stats << ["Number of patients with at least 1 SOR", total_patients_sharing_sors.uniq.length]
+    summary_stats << ["Number of SORs with >= #{options[:patients_filter]} patients", n_sor]
     summary_stats << ['Nucleotides affected by mutations', nt]
     # summary_stats << ['Patient average per region', pats_per_region]
     sor_coverage_to_plot = get_final_coverage(raw_sor_coverage, options[:bin_size])
