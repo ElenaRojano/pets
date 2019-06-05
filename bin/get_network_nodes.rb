@@ -37,12 +37,10 @@ def loadPatientFile(patient_file, hpo_storage, hpo_dictionary, add_parents)
 		end
 		info = [patient, start.to_i, stop.to_i]
 		add_record(patients_genomic_region_by_chr, chr, info)
-
 	end
 	return patient2phenotype, hpo_count, not_found, patients_genomic_region_by_chr
 end
 
-# 08/04/19
 def get_all_hpos(patient, hpo_code, patient2phenotype, hpo_storage, hpo_count, add_parents)
 	add_record(hpo_count, hpo_code, patient)
 	add_record(patient2phenotype, patient, hpo_code)

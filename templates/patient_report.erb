@@ -1,5 +1,6 @@
 <%
 	def get_hpo_link(hpo_code)
+		# STDERR.puts hpo_code.inspect
 		if hpo_code == '-'
 			link = '-'
 		else
@@ -70,6 +71,7 @@
 		data.each do |row|
 			row.each_with_index do |cell, i|
 				if i == 1
+					# STDERR.puts cell.inspect
 					row[i] = get_hpo_link(cell)
 				elsif i == 4
 					row[i] = cell.map{|h,n| [get_hpo_link(h), n].compact}.join(', ')	

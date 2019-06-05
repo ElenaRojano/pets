@@ -22,56 +22,6 @@ CHR = 1
 START = 2
 STOP = 3
 
-def load_patient_cohort(options)
-	patient_data = {}
-	count = 0
-	fields2extract = get_fields2extract(options)
-	field_numbers = fields2extract.values
-  original_ids = []
-  File.open(options[:input_file]).each do |line|
-    line.chomp!
-    if options[:header] && count == 0
-      line.gsub!(/#\s*/,'') # correct comment like  headers
-      field_names = line.split("\t")
-      get_field_numbers2extract(field_names, fields2extract)
-      field_numbers = fields2extract.values
-    else
-      fields = line.split("\t")
-      pat_record = field_numbers.map{|n| fields[n]}
-      if fields2extract[:pat_id_col].nil?
-        pat_id = "pat_#{count}" #generate ids
-      else
-        original_id = pat_record.shift
-        original_ids << original_id
-        pat_id = original_id + "_i#{count}" # make sure that ids are uniq
-      end
-      patient_data[pat_id] = pat_record
-    end
-    count +=1
-  end
-  fields2extract[:pat_id_col].nil? ? patient_number = count : patient_number = original_ids.uniq.length
-  options[:pat_id_col] = 'generated' if fields2extract[:pat_id_col].nil?
-  return patient_data, patient_number
-end 
-
-def get_fields2extract(options)
-	fields2extract = {}
-	[:pat_id_col, :hpo_col, :chromosome_col, :start_col, :end_col].each do |field|
-		col = options[field]
-		if !col.nil?
-			col = col.to_i if !options[:header]
-			fields2extract[field] = col
-		end
-	end
-	return fields2extract
-end
-
-def get_field_numbers2extract(field_names, fields2extract)
-  fields2extract.each do |field, name|
-    fields2extract[field] = field_names.index(name)
-  end
-end
-
 def format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
   all_hpo = []
   rejected_hpos = []
@@ -508,7 +458,7 @@ if !options[:chromosome_col].nil?
     summary_stats << ['Patient average per region', pats_per_region.round(4)]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
     write_coverage_data(coverage_to_plot, coverage_to_plot_file)
-    cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}"
+    cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t CNV"
     system(cmd)
 
     ###2. Process SORs
@@ -519,7 +469,7 @@ if !options[:chromosome_col].nil?
     # summary_stats << ['Patient average per region', pats_per_region]
     sor_coverage_to_plot = get_final_coverage(raw_sor_coverage, options[:bin_size])
     write_coverage_data(sor_coverage_to_plot, sor_coverage_to_plot_file)
-    system("plot_area.R -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE}")
+    system("plot_area.R -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t SOR")
     all_sor_length = get_sor_length_distribution(raw_sor_coverage)  
   end
 end

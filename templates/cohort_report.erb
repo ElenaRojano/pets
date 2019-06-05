@@ -1,3 +1,9 @@
+<%
+	def add_tip(text, help_text)
+		return "<div class=\"tooltip\">#{text}<span class=\"tooltiptext\">#{help_text}</span></div>"
+	end
+%>
+
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Summary stats</h1>
 	<p> General stats about the patient cohort</p>
@@ -42,14 +48,14 @@
 	<p> Distribution of all mutations along the genome (Length) and the number of patients that have at least one of them (Count). Second figure shows the same for SORs. </p>
 		<%=
 			if !@hash_vars[:all_cnvs_length].nil?
-				sccater2D(id: :all_cnvs_length, header: false, row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
+				sccater2D(id: :all_cnvs_length, header: false, title: 'CNV', row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
 			else
 				"<p> No genomic data was specified for this cohort </p>"
 			end
 		%>
 		<%=
 			if !@hash_vars[:all_sor_length].nil?
-				sccater2D(id: :all_sor_length, header: false, row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
+				sccater2D(id: :all_sor_length, header: false, title: 'SOR', row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
 			else
 				"<p> No genomic data was specified for this cohort </p>"
 			end
@@ -74,11 +80,13 @@
 </div>
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
-	<h1 style="text-align: center; background-color:#d6eaf8">HPO profiles of the top clusters</h1>
-	<% @hash_vars[:top_cluster_phenotypes].times do |n| %>
+	<h1 style="text-align: center; background-color:#d6eaf8">HPO frequency by cluster</h1>
+	<% @hash_vars[:new_cluster_phenotypes].times do |n| %>
 		<%= table(id: "clust_#{n}", header: true, border: 2, row_names: false, text: true, 
 			cell_align: %w( center )) do |data|
-				data.unshift(["HPO profiles in cluster #{n}"])
+				# data.unshift([add_tip("HPO information in cluster #{n}"), "Patients" "Phenotypes", "Frequency")])
+				# data.unshift(["HPO information in cluster #{n}\tPhenotypes\tFrequency"])
+				data.unshift(["Patients in Cluster #{n}","Phenotypes", "Frequency"])
 			end
 		%>
 	<%end%>

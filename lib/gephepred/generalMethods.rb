@@ -504,3 +504,53 @@ def add_record(hash, key, record)
 		query << record
 	end
 end
+
+def load_patient_cohort(options)
+	patient_data = {}
+	count = 0
+	fields2extract = get_fields2extract(options)
+	field_numbers = fields2extract.values
+  original_ids = []
+  File.open(options[:input_file]).each do |line|
+    line.chomp!
+    if options[:header] && count == 0
+      line.gsub!(/#\s*/,'') # correct comment like  headers
+      field_names = line.split("\t")
+      get_field_numbers2extract(field_names, fields2extract)
+      field_numbers = fields2extract.values
+    else
+      fields = line.split("\t")
+      pat_record = field_numbers.map{|n| fields[n]}
+      if fields2extract[:pat_id_col].nil?
+        pat_id = "pat_#{count}" #generate ids
+      else
+        original_id = pat_record.shift
+        original_ids << original_id
+        pat_id = original_id + "_i#{count}" # make sure that ids are uniq
+      end
+      patient_data[pat_id] = pat_record
+    end
+    count +=1
+  end
+  fields2extract[:pat_id_col].nil? ? patient_number = count : patient_number = original_ids.uniq.length
+  options[:pat_id_col] = 'generated' if fields2extract[:pat_id_col].nil?
+  return patient_data, patient_number
+end 
+
+def get_fields2extract(options)
+	fields2extract = {}
+	[:pat_id_col, :hpo_col, :chromosome_col, :start_col, :end_col].each do |field|
+		col = options[field]
+		if !col.nil?
+			col = col.to_i if !options[:header]
+			fields2extract[field] = col
+		end
+	end
+	return fields2extract
+end
+
+def get_field_numbers2extract(field_names, fields2extract)
+  fields2extract.each do |field, name|
+    fields2extract[field] = field_names.index(name)
+  end
+end

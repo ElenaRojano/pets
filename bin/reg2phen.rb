@@ -10,35 +10,57 @@ require File.join(File.dirname(__FILE__), '..', 'lib', 'gephepred', 'generalMeth
 ##########################
 
 
-def predict_patient(prediction_file, training_set, thresold)
-  #training_set = {chr => [start, stop, nodeID, hpo, association_value]}
-	File.open(prediction_file).each do |line|
-		line.chomp!
-		fields = line.split("\t")
-		association_score = fields.pop
-    next if association_score < thresold
+def predict_patient(prediction_file, training_set, threshold)
+  File.open(prediction_file).each do |line|
+    line.chomp!
+    fields = line.split("\t")
+    association_score = fields.pop
+    next if association_score.to_f < threshold
     chr = fields.shift
     pt_start = fields.shift.to_i
     pt_stop = fields.shift.to_i
     nodeID = fields.shift
-    hpo_code = fiels.shift
+    hpo_code = fields.shift
     query = training_set[chr]
-		#puts training_set.inspect
     if !query.nil?
-			query.each do |hpo_start, hpo_stop, hpo_code, association_score|
-				if (hpo_stop > pt_start && hpo_stop <= pt_stop) ||
-					(hpo_start >= pt_start && hpo_start < pt_stop) ||
-					(hpo_start <= pt_start && hpo_stop >= pt_stop) ||
-					(hpo_start > pt_start && hpo_stop < pt_stop) 
-					puts [chr, pt_start, pt_stop].concat(fields).concat([hpo_code, association_score, hpo_start, hpo_stop]).join("\t") if association_score >= thresold
-				end
-			end
-		end
-	end
+      query.each do |hpo_start, hpo_stop, nodeID, hpo_code, association_score|
+        if (hpo_stop > pt_start && hpo_stop <= pt_stop) ||
+          (hpo_start >= pt_start && hpo_start < pt_stop) ||
+          (hpo_start <= pt_start && hpo_stop >= pt_stop) ||
+          (hpo_start > pt_start && hpo_stop < pt_stop) 
+          puts [chr, pt_start, pt_stop].concat(fields).concat([hpo_code, association_score, hpo_start, hpo_stop]).join("\t") if association_score >= threshold
+        end
+      end
+    end
+  end
 end
 
-
-
+# def predict_patient(prediction_file, training_set, thresold)
+#   #training_set = {chr => [start, stop, nodeID, hpo, association_value]}
+#   File.open(prediction_file).each do |line|
+#     line.chomp!
+#     fields = line.split("\t")
+#     association_score = fields.pop
+#     next if association_score < thresold
+#     chr = fields.shift
+#     pt_start = fields.shift.to_i
+#     pt_stop = fields.shift.to_i
+#     nodeID = fields.shift
+#     hpo_code = fiels.shift
+#     query = training_set[chr]
+#     #puts training_set.inspect
+#     if !query.nil?
+#       query.each do |hpo_start, hpo_stop, hpo_code, association_score|
+#         if (hpo_stop > pt_start && hpo_stop <= pt_stop) ||
+#           (hpo_start >= pt_start && hpo_start < pt_stop) ||
+#           (hpo_start <= pt_start && hpo_stop >= pt_stop) ||
+#           (hpo_start > pt_start && hpo_stop < pt_stop) 
+#           puts [chr, pt_start, pt_stop].concat(fields).concat([hpo_code, association_score, hpo_start, hpo_stop]).join("\t") if association_score >= thresold
+#         end
+#       end
+#     end
+#   end
+# end
 ##########################
 #OPT-PARSER
 ##########################
@@ -60,13 +82,14 @@ OptionParser.new do |opts|
   end
 
   options[:association_limit] = 0
-  opts.on("-l", "--association_limit FLOAT", "Thresold for association values") do |association_limit|
+  opts.on("-l", "--association_limit FLOAT", "Threshold for association values") do |association_limit|
   	options[:association_limit] = association_limit.to_f
   end
-  # options[:output_path] = "patient_file_overlapping.txt"
-  # opts.on("-o", '--output_path PATH', 'Output path for overlapping patient file') do |output_path|
-  # 	options[:output_path] = output_path
-  # end
+
+  options[:output_path] = "output.txt"
+  opts.on("-o", '--output_path PATH', 'Output path for overlapping patient file') do |output_path|
+  	options[:output_path] = output_path
+  end
 
 end.parse!
 
@@ -77,4 +100,8 @@ end.parse!
 
 training_set = load_training_file4regions(options[:training_file])
 predict_patient(options[:prediction_file], training_set, options[:association_limit])
-
+# handler = File.open(options[:output_path], 'w')
+# predicted_hpos.each do |predictions|
+#   handler.puts predictions.join("\t") 
+# end
+# handler.close
