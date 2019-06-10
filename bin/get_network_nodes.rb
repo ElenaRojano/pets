@@ -151,11 +151,6 @@ OptionParser.new do |opts|
     options[:output_file] = value
   end 
 
-  options[:hpo_stat_file] = 'hpo_stats.txt'
-  opts.on("-s", "--hpo_stat_file PATH", "Output file with HPO codes, their frequency and CI") do |value|
-    options[:hpo_stat_file] = value
-  end 
-
   options[:hpo_file] = nil
   opts.on("-p", "--hpo_file PATH", "Input HPO file for extracting HPO codes") do |value|
     options[:hpo_file] = value
@@ -166,9 +161,19 @@ OptionParser.new do |opts|
     options[:add_parents] = value
   end 
 
+  options[:hpo_stat_file] = 'hpo_stats.txt'
+  opts.on("-s", "--hpo_stat_file PATH", "Output file with HPO codes, their frequency and CI") do |value|
+    options[:hpo_stat_file] = value
+  end 
+
   options[:thresold] = 0
   opts.on("-t", "--info_thresold FLOAT", "IC thresold to discard non informative hpo") do |thresold|
     options[:thresold] = thresold.to_f
+  end
+
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
   end
 
 end.parse!
