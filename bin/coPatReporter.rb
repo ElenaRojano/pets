@@ -443,6 +443,13 @@ if !options[:chromosome_col].nil?
   #Prepare data to plot coverage
   if options[:coverage_analysis]
     processed_patient_data = process_patient_data(patient_data)
+    cnv_sizes = []
+    processed_patient_data.each do |chr, metadata|
+      metadata.each do |patientID, start, stop|
+        cnv_sizes << stop - start
+      end
+    end
+    cnv_size_average = cnv_sizes.inject{ |sum, el| sum + el }.fdiv(cnv_sizes.length.to_f)
     patients_by_cluster, sors = generate_cluster_regions(processed_patient_data, 'A', 0)
     total_patients_sharing_sors = []
     all_patients = patients_by_cluster.keys
@@ -456,6 +463,7 @@ if !options[:chromosome_col].nil?
     summary_stats << ['Number of genome windows', n_cnv]
     summary_stats << ['Nucleotides affected by mutations', nt]
     summary_stats << ['Patient average per region', pats_per_region.round(4)]
+    summary_stats << ['CNV size average', cnv_size_average.round(4)]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
     write_coverage_data(coverage_to_plot, coverage_to_plot_file)
     cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t CNV"

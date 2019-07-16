@@ -2,7 +2,7 @@ def process_patient_data(patient_data)
 	parsed_patient_data = {}
 	patient_data.each do |patientID, metadata|
 		phenotypes, chr, start, stop = metadata
-		info = [patientID, start, stop]
+		info = [patientID, start.to_i, stop.to_i]
 		query = parsed_patient_data[chr]
 		if query.nil?
 			parsed_patient_data[chr] = [info]
