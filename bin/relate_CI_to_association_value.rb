@@ -69,6 +69,10 @@ OptionParser.new do |opts|
     options[:add_header] = TRUE
   end
 
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
 
 end.parse!
 

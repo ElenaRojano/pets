@@ -1,4 +1,4 @@
-source 'https://rubygems.org'
+source "https://rubygems.org"
 
-# Specify your gem's dependencies in gephepred.gemspec
+# Specify your gem's dependencies in pets.gemspec
 gemspec

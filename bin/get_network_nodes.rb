@@ -167,7 +167,7 @@ OptionParser.new do |opts|
   end 
 
   options[:thresold] = 0
-  opts.on("-t", "--info_thresold FLOAT", "IC thresold to discard non informative hpo") do |thresold|
+  opts.on("-t", "--info_thresold FLOAT", "IC thresold to discard non informative hpo. Default: 0.") do |thresold|
     options[:thresold] = thresold.to_f
   end
 

@@ -252,6 +252,10 @@ OptionParser.new do |opts|
     abort("Please, choose a scale value higher than 0") if options[:scale_size] <= 0
   end
 
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
 
 end.parse!
 

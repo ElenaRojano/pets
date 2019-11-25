@@ -386,6 +386,11 @@ OptionParser.new do |opts|
     options[:ic_stats] = true
   end
 
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
+
 end.parse!
 
 

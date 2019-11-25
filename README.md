@@ -1,15 +1,17 @@
-# Gephepred
+# Pets
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/gephepred`. To experiment with that code, run `bin/console` for an interactive prompt.
+Pets (Patient exploration tools suite) include tools for the analysis of cohorts of patients with pathological phenotypes described in terms of the Human Phenotype Ontology (HPO) and the position their genomic variants clinically determined. 
 
-TODO: Delete this and the text above, and describe your gem
+Pets include tools to (1) perform cohort analysis (coPatReporter.rb), (2) searching for pathological phenotypes associated with a genomic region of interest (reg2phen.rb) and (3) predict regions of the genome that potentially lead to the pathological phenotypes observed in a patient (phen2reg.rb).
+
+Associations between pathological phenotypes and genomic regions (using genomic coordinates from GRCh37 human assembly) are previously calculated using NetAnalyzer (https://rubygems.org/gems/NetAnalyzer). Please cite us as Rojano E. et al (2017). Revealing the Relationship Between Human Genome Regions and Pathological Phenotypes Through Network Analysis. LNCS, 10208:197-207.
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'gephepred'
+gem 'pets'
 ```
 
 And then execute:
@@ -18,7 +20,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install gephepred
+    $ gem install pets
 
 ## Usage
 
@@ -32,7 +34,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/gephepred.
+Bug reports and pull requests are welcome on GitHub at https://bitbucket.org/elenarojano/pets.
 
 
 ## License
