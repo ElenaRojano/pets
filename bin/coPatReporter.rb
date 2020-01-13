@@ -6,7 +6,7 @@ EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
 IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
 CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
-$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'gephepred'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
 require 'csv'
@@ -422,6 +422,8 @@ hpo_parent_child_relations = get_child_parent_relations(hpo_storage)
 name2code_dictionary = create_hpo_dictionary(hpo_storage) if options[:hpo_names]
 
 patient_data, $patient_number = load_patient_cohort(options)
+
+
 cohort_hpos, suggested_childs, rejected_hpos = format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
 pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
 write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)

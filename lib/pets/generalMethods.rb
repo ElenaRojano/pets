@@ -200,28 +200,6 @@ def compute_IC_values(patient_data, total_patients)
 	return patients_per_hpo
 end
 
-# def get_child_parent_relations(hpo_storage)
-# 	# for getting hpo childs
-# 	storage_child = {}
-# 	hpo_storage.each do |hpo_code, hpo_data|
-# 		STDERR.puts hpo_data[3].inspect
-# 		Process.exit
-# 		main_code, hpo_name, synonyms, parents = hpo_data
-# 		parents.each do |par_hpo_code, par_hpo_name|
-# 			query = storage_child[par_hpo_code]
-# 			hpo_child = [main_code, hpo_name]
-# 			if query.nil?
-# 				storage_child[par_hpo_code] = [par_hpo_name, [hpo_child]]
-# 			else
-# 				query.last << hpo_child
-# 			end
-# 		end
-# 	end
-	
-# 	return storage_child
-# end
-
-
 def load_hpo_ci_values(information_coefficient_file)
 	hpos_ci_values = {}
 	File.open(information_coefficient_file).each do |line|
@@ -590,4 +568,12 @@ def get_field_numbers2extract(field_names, fields2extract)
   fields2extract.each do |field, name|
     fields2extract[field] = field_names.index(name)
   end
+end
+
+def download(ftp_server, path, name)
+  ftp = Net::FTP.new()
+  ftp.connect(ftp_server)
+  ftp.login
+  ftp.getbinaryfile(path, name)
+  ftp.close
 end

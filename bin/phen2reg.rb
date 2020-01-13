@@ -4,7 +4,7 @@
 
 REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 ROOT_PATH = File.dirname(__FILE__)
-$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'gephepred'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 require 'net/ftp'
 require 'net/http'
 require 'zlib'
@@ -37,14 +37,6 @@ def calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_
   records_to_delete.reverse_each do |record_number|
     adjacent_regions_joined.delete_at(record_number)
   end
-end
-
-def download(ftp_server, path, name)
-  ftp = Net::FTP.new()
-  ftp.connect(ftp_server)
-  ftp.login
-  ftp.getbinaryfile(path, name)
-  ftp.close
 end
 
 ##########################
