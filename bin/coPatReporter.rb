@@ -7,12 +7,14 @@ HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
 IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
 CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'simnetome', 'lib'))
 
 require 'optparse'
 require 'csv'
 require 'generalMethods.rb'
 require 'coPatReporterMethods.rb'
 require 'report_html'
+require 'obo_handler'
 
 ##########################
 #METHODS
@@ -287,6 +289,46 @@ def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_eva
   summary_stats << ['Percentage of defined HPOs that have more specific childs', (parent_hpo_count.fdiv(hpo_count) * 100).round(4)]
 end
 
+def get_ic_by_onto_and_freq(hpo_file, hpo_profiles)
+  obof = OBO_Handler.new(hpo_file, true) # Load ontology
+  obof.expand_base
+  hpo_profiles.each do |profile|
+    obof.add_observed_terms(profile)
+  end
+  hpos = hpo_profiles.flatten.uniq
+  onto_ic_values = hpos.map{|code| obof.get_IC(code)}
+  freq_ic_values = hpos.map{|code| obof.get_IC(code, false)}
+  onto_ic = {}
+  hpos.each_with_index do |code, i|
+    onto_ic[code] = onto_ic_values[i]
+  end 
+  freq_ic = {}
+  hpos.each_with_index do |code, i|
+    freq_ic[code] = freq_ic_values[i]
+  end 
+  return onto_ic, freq_ic
+end
+
+def get_ic_profile_by_onto_and_freq(onto_ic, freq_ic, hpo_profiles)
+  onto_ic_profile = []
+  freq_ic_profile = []
+  hpo_profiles.each do |profile|
+    pf_len = profile.length
+    onto_ic_profile << (profile.map{|code| onto_ic[code]}.inject(0){|sum, val| sum +val}).fdiv(pf_len)
+    freq_ic_profile << (profile.map{|code| freq_ic[code]}.inject(0){|sum, val| sum +val}).fdiv(pf_len)
+  end
+  return onto_ic_profile, freq_ic_profile
+end
+
+def write_arrays4scatterplot(onto_ic, freq_ic, hpo_ic_file)
+  File.open(hpo_ic_file, 'w') do |f|
+    f.puts "OntoIC\tFreqIC"
+    onto_ic.each_with_index do |value,i|
+        f.puts [value, freq_ic[i]].join("\t")
+    end
+  end
+end
+
 ##########################
 #OPT-PARSER
 ##########################
@@ -401,6 +443,8 @@ output_folder = File.dirname(options[:output_file])
 detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profile_evaluation.csv')
 temp_folder = File.join(output_folder, 'temp')
 matrix_file = File.join(temp_folder, 'pat_hpo_matrix.txt')
+hpo_ic_file = File.join(temp_folder, 'hpo_ic.txt')
+hpo_profile_ic_file = File.join(temp_folder, 'hpo_ic.txt')
 clustered_patients_file = File.join(temp_folder, 'cluster_asignation')
 cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
 cluster_chromosome_data_file = File.join(temp_folder, 'cluster_chromosome_data.txt')
@@ -421,13 +465,21 @@ hpo_storage = load_hpo_file(hpo_file, hpo_black_list)
 hpo_parent_child_relations = get_child_parent_relations(hpo_storage)
 name2code_dictionary = create_hpo_dictionary(hpo_storage) if options[:hpo_names]
 
+
 patient_data, $patient_number = load_patient_cohort(options)
 
 
 cohort_hpos, suggested_childs, rejected_hpos = format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
+hpo_profiles = patient_data.values.map{|pat_rec| pat_rec[HPOS]}
+onto_ic, freq_ic = get_ic_by_onto_and_freq(hpo_file, hpo_profiles)
+write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file)
+system("plot_scatterplot_simple.R #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
+onto_ic_profile, freq_ic_profile = get_ic_profile_by_onto_and_freq(onto_ic, freq_ic, hpo_profiles)
+write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file)
+system("plot_scatterplot_simple.R #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
+
 pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
 write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
-
 system("get_clusters.R #{matrix_file} #{temp_folder}") if !File.exists?(clustered_patients_file)
 clustered_patients = load_clustered_patients(clustered_patients_file)
 all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data)
