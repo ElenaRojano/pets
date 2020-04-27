@@ -71,10 +71,16 @@ OptionParser.new do |opts|
     options[:information_coefficient] = information_coefficient
   end
 
+  options[:join_adyacent_regions] = false
+  opts.on('-j', "--join_adyacent_regions", "When a group of regions are adyacent they are merged in a single one with averaged parameters. The phenotypes in the regions must be shared across them.") do 
+    options[:join_adyacent_regions] = true
+  end
+
   options[:retrieve_kegg_data] = false
   opts.on('-k', "--retrieve_kegg_data", "Add KEGG data to prediction report") do 
     options[:retrieve_kegg_data] = true
   end
+
 
   options[:print_matrix] = false
   opts.on('-m', "--print_matrix", "Print output matrix") do 
@@ -286,16 +292,15 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     null_value = 0
     hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile, null_value)
     if options[:print_matrix]
-      output_matrix = File.open(options[:output_matrix] + "_#{patient_number}", "w")
-      output_matrix.puts "Region\t#{patient_hpo_profile.join("\t")}"
-      regionAttributes_array = regionAttributes.values
-      hpo_region_matrix.each_with_index do |association_values, i|
-        chr, start, stop = regionAttributes_array[i]
-        output_matrix.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
+      File.open(options[:output_matrix] + "_#{patient_number}", "w") do |f|
+        f.puts "Region\t#{patient_hpo_profile.join("\t")}"
+        regionAttributes_array = regionAttributes.values
+        hpo_region_matrix.each_with_index do |association_values, i|
+          chr, start, stop = regionAttributes_array[i]
+          f.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
+        end
       end
-      output_matrix.close
     end
-
 
     scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree], null_value)
     if regionAttributes.empty?
@@ -307,7 +312,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
         association_values = association_scores[regionID]
         adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
       end
-      adjacent_regions_joined = join_regions(adjacent_regions_joined) # MOVER A ANTES DE CONSTRUIR LA MATRIZ
+      adjacent_regions_joined = join_regions(adjacent_regions_joined) if options[:join_adyacent_regions] # MOVER A ANTES DE CONSTRUIR LA MATRIZ
       
       #Ranking
       if options[:ranking_style] == 'fisher'
