@@ -325,8 +325,8 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       if adjacent_regions_joined.empty?
         puts "ProfID:#{patient_number}\tResults not found"
       else
-        adjacent_regions_joined = adjacent_regions_joined[0..options[:max_number]-1] if !options[:max_number].nil?
-        adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|      
+        adjacent_regions_joined = adjacent_regions_joined.shift(options[:max_number]) if !options[:max_number].nil?
+        adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
           puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
         end
       end
@@ -368,6 +368,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   #Creating html report
   #-------------------
   ####PLEASE CHECK THIS METHOD!
+
   report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_storage, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
 end # end each_with_index
 

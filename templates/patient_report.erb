@@ -135,7 +135,7 @@
 	<%= 
 	if !@hash_vars[:merged_regions].nil?
 		gene_var = @hash_vars[:genes_with_kegg_data]
-		table(id: :merged_regions, header: true, border: 2, 
+		table(id: :merged_regions, header: true, border: 2,
 		cell_align: %w(center center center left center center)) do |data|
 		hpo_metadata = @hash_vars[:hpo_metadata]
 		data.each_with_index do |row, row_number|
@@ -147,9 +147,9 @@
 						if a.abs > 0.01
 							a.to_f.round(2)
 						else
-							"%e" %a
+							"%.3E" %a
 						end
-						}.join("\n<br>")
+					}.join("\n<br>")
 				end
 			end
 			if !gene_var.nil?
