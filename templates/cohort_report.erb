@@ -44,8 +44,8 @@
 		end
 	%>
 	<div style="overflow: hidden">
-	<h1 style="text-align: center; background-color:#d6eaf8">Distribution of mutations</h1>
-	<p> Distribution of all mutations along the genome (Length) and the number of patients that have at least one of them (Count). Second figure shows the same for SORs. </p>
+		<h1 style="text-align: center; background-color:#d6eaf8">Distribution of mutations</h1>
+		<p> Distribution of all mutations along the genome (Length) and the number of patients that have at least one of them (Count). Second figure shows the same for SORs. </p>
 		<%=
 			if !@hash_vars[:all_cnvs_length].nil?
 				sccater2D(id: :all_cnvs_length, header: false, title: 'CNV', row_names: false, x_label: 'Length', y_label: 'Count', width: "800px", height: "800px", responsive: false)
@@ -60,6 +60,30 @@
 				"<p> No genomic data was specified for this cohort </p>"
 			end
 		%>
+	</div>
+</div>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">HPO annotations distribution</h1>
+	<p> Analysis of the HPO terms within the HPO ontology and the cohort of patients. Left: distribution of terms within the ontology and the cohort. Right: percentage of terms distribution within the ontology and the cohort.</p>
+	<div style="overflow: hidden">
+		<%=
+			if !@hash_vars[:ontology_levels].nil?
+				barplot(id: :ontology_levels, header: true, x_label: 'Number of HPO terms', title: 'HPO annotations distribution', width: "800px", height: "800px", responsive: false, transpose: true, 
+					config: {
+						'graphOrientation' => 'vertical'
+					})
+			end
+		%>
+		<%=
+			if !@hash_vars[:distribution_percentage].nil?
+				line(id: :distribution_percentage, header: true, x_label: 'Percentage of terms', title: 'HPO percentage distribution', width: "800px", height: "800px", responsive: false, transpose: true, 
+					config: {
+						'graphOrientation' => 'vertical'
+					})
+			end
+		%>
+
 	</div>
 </div>
 

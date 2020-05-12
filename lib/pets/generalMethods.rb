@@ -57,7 +57,7 @@ def loadFile(file, thresold=0)
 	return information
 end
 
-def add_record2storage(hpo_storage, id, name, is_a, syn, alt_ids, hpo_black_list)
+def add_record2storage(hpo_storage, id, name, is_a, syn, alt_ids, hpo_black_list) #ontology
 	if !hpo_black_list.include?(id)
 		attributes = [id, name, is_a - hpo_black_list, syn]
 		hpo_storage[id] = attributes
@@ -67,7 +67,7 @@ def add_record2storage(hpo_storage, id, name, is_a, syn, alt_ids, hpo_black_list
 	end 
 end
 
-def load_hpo_file(hpo_file, hpo_black_list=[])
+def load_hpo_file(hpo_file, hpo_black_list=[]) #ontology
 	hpo_storage = {}
 	hpo_obsolete = {}
 	id = nil
@@ -136,7 +136,7 @@ def load_hpo_file(hpo_file, hpo_black_list=[])
 	return hpo_storage
 end
 
-def load_hpo_black_list(excluded_hpo_file)
+def load_hpo_black_list(excluded_hpo_file) #ontology
 	excluded_hpos = []
 	File.open(excluded_hpo_file).each do |line|
 		line.chomp!
@@ -145,7 +145,7 @@ def load_hpo_black_list(excluded_hpo_file)
 	return excluded_hpos
 end
 
-def create_hpo_dictionary(hpo_storage)
+def create_hpo_dictionary(hpo_storage) #ontology
 	hpo_dictionary = {}
 	hpo_storage.each do |hpo, metadata|
 		unless metadata.nil? # To remove hpos without parents (i.e: Obsolete HPO)

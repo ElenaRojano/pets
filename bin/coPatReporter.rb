@@ -3,6 +3,7 @@
 ROOT_PATH = File.dirname(__FILE__)
 REPORT_FOLDER = File.expand_path(File.join(ROOT_PATH, '..', 'templates'))
 EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
+EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))
 HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
 IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
 CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
@@ -14,7 +15,7 @@ require 'csv'
 require 'generalMethods.rb'
 require 'coPatReporterMethods.rb'
 require 'report_html'
-require 'obo_handler'
+require 'ontology'
 
 ##########################
 #METHODS
@@ -24,60 +25,39 @@ CHR = 1
 START = 2
 STOP = 3
 
-def format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
+def format_patient_data(patient_data, options, hpo)
   all_hpo = []
   rejected_hpos = []
   suggested_childs = {}
+  total_terms = 0
+  terms_with_more_specific_childs = 0
   patient_data.each do |pat_id, patient_record|
     string_hpos, chr, start, stop = patient_record
     hpos = string_hpos.split(options[:hpo_separator])
-    translate_hpo_names2codes(hpos, name2code_dictionary, pat_id, rejected_hpos) if options[:hpo_names]
-    suggested_childs[pat_id] = check_hpo_codes(hpos, hpo_storage, hpo_parent_child_relations, pat_id, rejected_hpos)
+
+    if options[:hpo_names]
+      hpos, pat_rejected_hpos = hpo.translate_names2codes(hpos)
+      if !pat_rejected_hpos.empty?
+        STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo NAMES '#{pat_rejected_hpos.join(',')}'. Rejected."
+        rejected_hpos.concat(pat_rejected_hpos)
+      end
+    end
+
+    hpos, pat_rejected_hpos = hpo.check_codes(hpos)
+    if !pat_rejected_hpos.empty?
+      STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODES '#{pat_rejected_hpos.join(',')}'. Rejected."
+      rejected_hpos.concat(pat_rejected_hpos)
+    end
+    total_terms += hpos.length
+    more_specific_childs = hpo.get_more_specific_childs_table(hpos)
+    terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
+    suggested_childs[pat_id] = more_specific_childs  
     all_hpo.concat(hpos)
     patient_record[HPOS] = hpos
     patient_record[START] = start.to_i if !start.nil?
     patient_record[STOP] = stop.to_i if !stop.nil?
   end
-  return all_hpo.uniq, suggested_childs, rejected_hpos.uniq
-end
-
-def translate_hpo_names2codes(hpos, hpo_dictionary, pat_id, rejected_hpos)
-  hpo_codes = []
-  hpos.each_with_index do |hpo_name, i|
-    hpo_code = hpo_dictionary[hpo_name]
-    if hpo_code.nil?
-      STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo NAME '#{hpo_name}'. Rejected."
-      rejected_hpos << hpo_name
-    else
-      hpo_codes << hpo_code
-    end
-  end
-  hpos.clear
-  hpos.concat(hpo_codes)
-end
-
-def check_hpo_codes(hpos, hpo_storage, hpo_parent_child_relations, pat_id, rejected_hpos)
-  more_specific_hpo = []
-  hpos.each_with_index do |hpo_code, i|
-    hpo_data = hpo_storage[hpo_code]
-    if hpo_data.nil?
-      hpos[i] = nil
-      STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODE '#{hpo_code}'. Rejected."
-      rejected_hpos << hpo_code
-    else
-      main_hpo_code, name = hpo_data
-      hpos[i] = main_hpo_code # change from alternate hpo codes to the main ones
-      childs = hpo_parent_child_relations[main_hpo_code]
-      if childs.nil?
-        specific_childs = []
-      else
-        specific_childs = childs
-      end
-      more_specific_hpo << [[main_hpo_code, name], specific_childs]
-    end
-  end
-  hpos.compact!
-  return more_specific_hpo
+  return all_hpo.uniq, suggested_childs, rejected_hpos.uniq, terms_with_more_specific_childs.fdiv(total_terms)
 end
 
 def generate_patient_hpo_matrix(patient_data, cohort_hpos)
@@ -103,13 +83,13 @@ def write_matrix_for_R(matrix, x_names, y_names, file)
   end
 end
 
-def process_clustered_patients(options, clustered_patients, patient_data) # get ic and chromosomes
+def process_clustered_patients(options, clustered_patients, patient_data, hpo) # get ic and chromosomes
   if options[:ic_stats]
     ic_file = ENV['ic_file']
     ic_file = IC_FILE if ic_file.nil?
     phenotype_ic = load_hpo_ci_values(ic_file)
   else
-    phenotype_ic = compute_IC_values(patient_data, $patient_number)
+    phenotype_ic = compute_IC_values(patient_data, patient_data.length)
   end
   all_ics = []
   top_cluster_phenotypes = []
@@ -127,7 +107,10 @@ def process_clustered_patients(options, clustered_patients, patient_data) # get 
       phenotypes = patient[HPOS]
       profile_ics << get_profile_ic(phenotypes, phenotype_ic)
       #optional
-      all_phens << phenotypes if processed_clusters < options[:clusters2show_detailed_phen_data]      
+      if processed_clusters < options[:clusters2show_detailed_phen_data]
+        phen_names, rejected_codes = hpo.translate_codes2names(phenotypes)
+        all_phens << phen_names
+      end
       chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil?
     end
     top_cluster_phenotypes << all_phens if processed_clusters < options[:clusters2show_detailed_phen_data]
@@ -193,71 +176,85 @@ def write_coverage_data(coverage_to_plot, coverage_to_plot_file)
   end
 end
 
-def get_hpo_profile(patient_data)
+def get_uniq_hpo_profiles(patient_data) # To aviod duplications due to more one mutation in the same patient
   hpo_profiles = []
-  patient_data.each do |pat_id, pat_data|
-      hpo_profiles << pat_data[HPOS]
+  parsed_pats = []
+  patient_data.each do |variant_id, patient_rec|
+    pat_id, count = variant_id.split('_i')
+    if parsed_pats.include?(pat_id)
+      next
+    else
+      parsed_pats << pat_id
+      hpo_profiles << patient_rec[HPOS]
+    end
   end
   return hpo_profiles
 end
 
-def get_summary_stats(patient_data, cohort_hpos, all_hpo_profiles)
-  stats = []
+def get_patient_ids(patient_data) # To aviod duplications due to more one mutation in the same patient
   ids = []
-  stats << ['Unique HPOs', cohort_hpos.length]
   patient_ids = patient_data.keys
-  patient_ids.each do |pat_id| 
+  patient_ids.each do |pat_id|
     id, count = pat_id.split('_i')
     ids << id
   end
-  n_pat = ids.uniq.length
-  stats << ['Number of patients in the cohort', n_pat]
-  all_hpo_prof_lengths = all_hpo_profiles.map{|p| p.length}.sort
-  stats << ['HPOs per patient (average)', all_hpo_prof_lengths.inject(0){|sum, n| sum + n}.fdiv(n_pat).round(4)]
-  hpo_pat90 = nil
-  rate = 0
-  count = 0
-  while rate <= 0.1
-    hpo_pat90 = all_hpo_prof_lengths[count+1]
-    rate = count.fdiv(n_pat)
-    count += 1
-  end
-  stats << ['HPOs for patient in percentile 90', hpo_pat90]
+  return  ids.uniq
+end
+
+def get_summary_stats(patient_data, cohort_hpos, hpo)
+  stats = []
+  stats << ['Unique HPOs', cohort_hpos.length]
+  stats << ['Number of patients in the cohort', get_patient_ids(patient_data).length]
+  stats << ['HPOs per patient (average)', hpo.get_profile_mean_length]
+  stats << ['HPOs for patient in percentile 90', hpo.get_profile_length_at_percentile(perc=90)]
   return stats
 end
 
-def hpo_stats(all_hpo_profiles)
-  stats = Hash.new(0)
-  all_hpo_profiles.each do |profile|
-    profile.each do |hpo|
-      stats[hpo] += 1
-    end
-  end
-  n_profiles = all_hpo_profiles.length
-  hpo_stats = []
-  stats.each do |hpo, count|
-    hpo_stats << [hpo, count.fdiv(n_profiles)*100]
-  end
-  hpo_stats.sort!{|h1, h2| h2[1] <=> h1[1]}
-  return hpo_stats[0..20]
+def cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file)
+  pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
+  write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
+  system("#{File.join(EXTERNAL_CODE, 'get_clusters.R')} #{matrix_file} #{clustered_patients_file}") if !File.exists?(clustered_patients_file)
+  clustered_patients = load_clustered_patients(clustered_patients_file)
+  return(clustered_patients)
 end
 
-def translate_hpo_codes2names(all_hpo_profiles, hpo_storage)
-  all_hpo_profiles.each do |profile|
-    profile.each_with_index do |hpo, i|
-      hpo_data = hpo_storage[hpo]
-      if hpo_data.nil?
-        STDERR.puts "WARNING: hpo code '#{hpo}' not exists."
-      else
-        profile[i] = hpo_data[1]
-      end
+def get_profile_ontology_distribution_tables(hpo)
+  cohort_ontology_levels = hpo.get_ontology_levels_from_profiles(uniq=false)
+  uniq_cohort_ontology_levels = hpo.get_ontology_levels_from_profiles
+  hpo_ontology_levels = hpo.term_level
+  total_ontology_terms = hpo_ontology_levels.values.flatten.length
+  total_cohort_terms = cohort_ontology_levels.values.flatten.length
+  total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
+
+  ontology_levels = []
+  distribution_percentage = []
+  hpo_ontology_levels.each do |level, terms|
+    cohort_terms = cohort_ontology_levels[level]
+    uniq_cohort_terms = uniq_cohort_ontology_levels[level]
+    if cohort_terms.nil? || uniq_cohort_terms.nil?
+      num = 0
+      u_num = 0
+    else
+      num = cohort_terms.length
+      u_num = uniq_cohort_terms.length
     end
+    ontology_levels << [level, terms.length, num]
+    distribution_percentage << [
+      level,
+      (terms.length.fdiv(total_ontology_terms)*100).round(3),
+      (num.fdiv(total_cohort_terms)*100).round(3),
+      (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
+    ]
   end
+  ontology_levels.sort! { |x,y| x.first <=> y.first }
+  distribution_percentage.sort! { |x,y| x.first <=> y.first }
+  ontology_levels.unshift ["level", "ontology", "cohort"]
+  distribution_percentage.unshift ["level", "ontology", "weighted cohort", "uniq terms cohort"]
+  return ontology_levels, distribution_percentage
 end
+
 
 def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
-  hpo_count = 0
-  parent_hpo_count = 0
   CSV.open(detailed_profile_evaluation_file, "wb") do |csv|
     suggested_childs.each do |pat_id, suggestions|
       warning = nil
@@ -265,12 +262,10 @@ def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_eva
       csv << ["PATIENT #{pat_id}", "#{warning}"]
       csv << ["CURRENT PHENOTYPES", "PUTATIVE MORE SPECIFIC PHENOTYPES"]
       suggestions.each do |parent, childs|
-        hpo_count += 1
         parent_code, parent_name = parent
         if childs.empty?
           csv << ["#{parent_name} (#{parent_code})", '-']
         else
-          parent_hpo_count += 1
           parent_writed = false
           childs.each do |child_code, child_name|
             if !parent_writed
@@ -286,39 +281,9 @@ def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_eva
       csv << ["", ""]
     end
   end
-  summary_stats << ['Percentage of defined HPOs that have more specific childs', (parent_hpo_count.fdiv(hpo_count) * 100).round(4)]
 end
 
-def get_ic_by_onto_and_freq(hpo_file, hpo_profiles)
-  obof = OBO_Handler.new(hpo_file, true) # Load ontology
-  obof.expand_base
-  hpo_profiles.each do |profile|
-    obof.add_observed_terms(profile)
-  end
-  hpos = hpo_profiles.flatten.uniq
-  onto_ic_values = hpos.map{|code| obof.get_IC(code)}
-  freq_ic_values = hpos.map{|code| obof.get_IC(code, false)}
-  onto_ic = {}
-  hpos.each_with_index do |code, i|
-    onto_ic[code] = onto_ic_values[i]
-  end 
-  freq_ic = {}
-  hpos.each_with_index do |code, i|
-    freq_ic[code] = freq_ic_values[i]
-  end 
-  return onto_ic, freq_ic
-end
 
-def get_ic_profile_by_onto_and_freq(onto_ic, freq_ic, hpo_profiles)
-  onto_ic_profile = []
-  freq_ic_profile = []
-  hpo_profiles.each do |profile|
-    pf_len = profile.length
-    onto_ic_profile << (profile.map{|code| onto_ic[code]}.inject(0){|sum, val| sum +val}).fdiv(pf_len)
-    freq_ic_profile << (profile.map{|code| freq_ic[code]}.inject(0){|sum, val| sum +val}).fdiv(pf_len)
-  end
-  return onto_ic_profile, freq_ic_profile
-end
 
 def write_arrays4scatterplot(onto_ic, freq_ic, hpo_ic_file)
   File.open(hpo_ic_file, 'w') do |f|
@@ -453,53 +418,40 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
 # cnvs_lenght_to_plot_file = File.join(temp_folder, 'cnvs_lenght.txt')
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
-# LOAD HPO DATA
-#-------------------------
-
-# #load hpo dictionaries
 hpo_black_list = []
-hpo_black_list = load_hpo_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
 hpo_file = ENV['hpo_file']
 hpo_file = HPO_FILE if hpo_file.nil?
-hpo_storage = load_hpo_file(hpo_file, hpo_black_list)
-hpo_parent_child_relations = get_child_parent_relations(hpo_storage)
-name2code_dictionary = create_hpo_dictionary(hpo_storage) if options[:hpo_names]
 
+hpo = Ontology.new
+hpo.load_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
+hpo.load_data(hpo_file)
 
-patient_data, $patient_number = load_patient_cohort(options)
+patient_data, patient_number = load_patient_cohort(options)
+cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
+hpo.load_profiles(get_uniq_hpo_profiles(patient_data))
 
+ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
-cohort_hpos, suggested_childs, rejected_hpos = format_patient_data(patient_data, options, name2code_dictionary, hpo_storage, hpo_parent_child_relations)
-hpo_profiles = patient_data.values.map{|pat_rec| pat_rec[HPOS]}
-onto_ic, freq_ic = get_ic_by_onto_and_freq(hpo_file, hpo_profiles)
-write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file)
-system("plot_scatterplot_simple.R #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
-onto_ic_profile, freq_ic_profile = get_ic_profile_by_onto_and_freq(onto_ic, freq_ic, hpo_profiles)
-write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file)
-system("plot_scatterplot_simple.R #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
+onto_ic, freq_ic = hpo.get_ic_by_onto_and_freq(hpo_file)
+onto_ic_profile, freq_ic_profile = hpo.get_ic_profile_by_onto_and_freq
 
-pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
-write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
-system("get_clusters.R #{matrix_file} #{temp_folder}") if !File.exists?(clustered_patients_file)
-clustered_patients = load_clustered_patients(clustered_patients_file)
-all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data)
-write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
-system("plot_boxplot.R #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
-all_hpo_profiles = get_hpo_profile(patient_data)
-translate_hpo_codes2names(all_hpo_profiles, hpo_storage)
-summary_stats = get_summary_stats(patient_data, cohort_hpos, all_hpo_profiles)
-write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
-hpo_stats = hpo_stats(all_hpo_profiles)
+clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 
+all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo)
+
+summary_stats = get_summary_stats(patient_data, cohort_hpos, hpo)
+summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]
+
+# Move code 'Percentage of defined HPOs that have more specific childs' outside the next function
+hpo_stats = hpo.get_term_frequency_from_profiles(names=true)[0..20]
 summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
 
 all_cnvs_length = []
 if !options[:chromosome_col].nil?
   summary_stats << ['Number of clusters with mutations accross > 1 chromosomes', multi_chromosome_patients]
-  write_cluster_chromosome_data(cluster_data_by_chromosomes, cluster_chromosome_data_file, options[:clusters2graph])
-  system("plot_scatterplot.R #{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
   
   #----------------------------------
-  #Prepare data to plot coverage
+  # Prepare data to plot coverage
+  #----------------------------------
   if options[:coverage_analysis]
     processed_patient_data = process_patient_data(patient_data)
     cnv_sizes = []
@@ -524,9 +476,6 @@ if !options[:chromosome_col].nil?
     summary_stats << ['Patient average per region', pats_per_region.round(4)]
     summary_stats << ['CNV size average', cnv_size_average.round(4)]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
-    write_coverage_data(coverage_to_plot, coverage_to_plot_file)
-    cmd = "plot_area.R -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t CNV"
-    system(cmd)
 
     ###2. Process SORs
     raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, options[:patients_filter] - 1)
@@ -535,13 +484,39 @@ if !options[:chromosome_col].nil?
     summary_stats << ['Nucleotides affected by mutations', nt]
     # summary_stats << ['Patient average per region', pats_per_region]
     sor_coverage_to_plot = get_final_coverage(raw_sor_coverage, options[:bin_size])
-    write_coverage_data(sor_coverage_to_plot, sor_coverage_to_plot_file)
-    system("plot_area.R -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t SOR")
+
     all_sor_length = get_sor_length_distribution(raw_sor_coverage)  
   end
 end
+
 #----------------------------------
-#Report
+# Write files for report
+#----------------------------------
+write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
+write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file)
+write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file)
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
+
+write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
+system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
+
+if !options[:chromosome_col].nil?
+  write_cluster_chromosome_data(cluster_data_by_chromosomes, cluster_chromosome_data_file, options[:clusters2graph])
+  system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot.R')} #{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
+  if options[:coverage_analysis]
+    ###1. Process CNVs
+    write_coverage_data(coverage_to_plot, coverage_to_plot_file)
+    cmd = "#{File.join(EXTERNAL_CODE, 'plot_area.R')} -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t CNV"
+    system(cmd)
+    ###2. Process SORs
+    write_coverage_data(sor_coverage_to_plot, sor_coverage_to_plot_file)
+    system("#{File.join(EXTERNAL_CODE, 'plot_area.R')} -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t SOR")    
+  end
+end
+#----------------------------------
+# Report
+#----------------------------------
 total_patients = 0
 new_cluster_phenotypes = {}
 phenotypes_frequency = Hash.new(0)
@@ -563,7 +538,9 @@ container = {
   :hpo_stats => hpo_stats,
   :all_cnvs_length => all_cnvs_length,
   :all_sor_length => all_sor_length,
-  :new_cluster_phenotypes => new_cluster_phenotypes.keys.length
+  :new_cluster_phenotypes => new_cluster_phenotypes.keys.length,
+  :ontology_levels => ontology_levels,
+  :distribution_percentage => distribution_percentage,
  }
 # top_cluster_phenotypes.each_with_index do |cluster, i|
 #   clust_pr = cluster.map{|pr| [pr.join(', ')] }
