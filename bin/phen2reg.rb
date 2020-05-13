@@ -173,18 +173,6 @@ all_paths[:gene_data_with_pathways] = File.join(all_paths[:external_data], 'gene
 all_paths[:gene_location] = File.join(all_paths[:external_data], 'gene_location.gz')
 
 ##########################
-#DOWNLOADS
-##########################
-sources = [
-  ['ftp.ncbi.nlm.nih.gov', 'genomes/H_sapiens/ARCHIVE/ANNOTATION_RELEASE.105/GFF/ref_GRCh37.p13_top_level.gff3.gz', all_paths[:gene_data]],
-  ['ftp.ncbi.nlm.nih.gov', 'pub/biosystems/CURRENT/biosystems_gene.gz', all_paths[:biosystems_gene]],
-  ['ftp.ncbi.nlm.nih.gov', 'pub/biosystems/CURRENT/bsid2info.gz', all_paths[:biosystems_info]]
-]
-sources.each do |server, path, output|
-  download(server, path, output) if !File.exists?(output)
-end
-
-##########################
 #MAIN
 ##########################
 
@@ -221,17 +209,7 @@ end
 genes_with_kegg = {}
 gene_location = {}
 if options[:retrieve_kegg_data] 
-  if !File.exists?(all_paths[:gene_data_with_pathways]) || !File.exists?(all_paths[:gene_location])
-    gene_list, gene_location = load_gene_data(all_paths[:gene_data])
-    ### kegg_data = parse_kegg_data(genes_found_attributes.keys)
-    kegg_data = parse_kegg_from_biosystems(all_paths[:biosystems_gene], all_paths[:biosystems_info])
-    genes_with_kegg = merge_genes_with_kegg_data(gene_list, kegg_data)
-    write_compressed_plain_file(genes_with_kegg, all_paths[:gene_data_with_pathways])
-    write_compressed_plain_file(gene_location, all_paths[:gene_location])
-  else
-    gene_location = read_compressed_json(all_paths[:gene_location])
-    genes_with_kegg = read_compressed_json(all_paths[:gene_data_with_pathways])
-  end
+ gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
 end
 
 # hpo_dictionary = load_hpo_dictionary_name2code(options[:hpo2name_file]) if options[:hpo_is_name]

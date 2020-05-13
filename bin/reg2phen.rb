@@ -12,6 +12,7 @@ require 'net/http'
 require 'zlib'
 require 'json'
 require 'generalMethods.rb'
+require 'ontology'
 
 ##########################
 #METHODS
@@ -56,12 +57,12 @@ def predict_patient(predictions, training_set, threshold, transform, genes, gene
   return results
 end
 
-def translate_hpos(results, hpo_storage)
+def translate_hpos_in_results(results, hpo)
   results.each do |coords, data|
     data.each do |info|
       hpo_code = info[3]
-      hpo_info = hpo_storage[hpo_code]
-      hpo_code.replace(hpo_info[1])
+      hpo_name, rejected = hpo.translate_codes2names([hpo_code])
+      hpo_code.replace(hpo_name.first)
     end
   end
 end
@@ -76,7 +77,8 @@ def generate_gene_locations(gene_location)
   return gene_locations
 end
 
-def generate_genes_dictionary(genes_with_kegg, gene_locations)
+def generate_genes_dictionary(genes_with_kegg)
+  gene_locations = generate_gene_locations(gene_location)
   genes_dictionary = {}
   genes_with_kegg.each do |geneID, annotInfo|
     #STDERR.puts annotInfo.shift.inspect
@@ -163,42 +165,16 @@ all_paths[:biosystems_info] = File.join(all_paths[:external_data], 'bsid2info.gz
 all_paths[:gene_data_with_pathways] = File.join(all_paths[:external_data], 'gene_data_with_pathways.gz')
 all_paths[:gene_location] = File.join(all_paths[:external_data], 'gene_location.gz')
 
-##########################
-#DOWNLOADS
-##########################
-sources = [
-  ['ftp.ncbi.nlm.nih.gov', 'genomes/H_sapiens/ARCHIVE/ANNOTATION_RELEASE.105/GFF/ref_GRCh37.p13_top_level.gff3.gz', all_paths[:gene_data]],
-  ['ftp.ncbi.nlm.nih.gov', 'pub/biosystems/CURRENT/biosystems_gene.gz', all_paths[:biosystems_gene]],
-  ['ftp.ncbi.nlm.nih.gov', 'pub/biosystems/CURRENT/bsid2info.gz', all_paths[:biosystems_info]]
-]
-sources.each do |server, path, output|
-  download(server, path, output) if !File.exists?(output)
-end
 
 ##########################
 #MAIN
 ##########################
-
+gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
+hpo = Ontology.new
+hpo.load_data(options[:hpo_file])
 training_set = load_training_file4regions(options[:training_file])
-hpo_storage = load_hpo_file(options[:hpo_file])
-genes_with_kegg = {}
-gene_location = {}
-if !File.exists?(all_paths[:gene_data_with_pathways]) || !File.exists?(all_paths[:gene_location])
-  gene_list, gene_location = load_gene_data(all_paths[:gene_data])
-  ### kegg_data = parse_kegg_data(genes_found_attributes.keys)
-  kegg_data = parse_kegg_from_biosystems(all_paths[:biosystems_gene], all_paths[:biosystems_info])
-  genes_with_kegg = merge_genes_with_kegg_data(gene_list, kegg_data)
-  write_compressed_plain_file(genes_with_kegg, all_paths[:gene_data_with_pathways])
-  write_compressed_plain_file(gene_location, all_paths[:gene_location])
-else
-  gene_location = read_compressed_json(all_paths[:gene_location])
-  genes_with_kegg = read_compressed_json(all_paths[:gene_data_with_pathways])
-end
-
-if options[:input_genes]
-  gene_locations = generate_gene_locations(gene_location)
-  genes_dictionary = generate_genes_dictionary(genes_with_kegg, gene_locations)
-end
+genes_dictionary = {}
+genes_dictionary = generate_genes_dictionary(genes_with_kegg) if options[:input_genes]
 
 multiple_regions = []
 File.open(options[:prediction_file]).each do |line|
@@ -207,7 +183,7 @@ File.open(options[:prediction_file]).each do |line|
   options[:prediction_file] = multiple_regions
 end
 results = predict_patient(options[:prediction_file], training_set, options[:association_limit], options[:transform_pvalues], options[:input_genes], genes_dictionary)
-translate_hpos(results, hpo_storage)
+translate_hpos_in_results(results, hpo)
 
 results.each do |pred, values|
   values.sort! do |a, b|
