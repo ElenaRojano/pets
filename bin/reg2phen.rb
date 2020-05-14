@@ -6,50 +6,32 @@
 REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'simnetome', 'lib'))
 require 'optparse'
-require 'net/ftp'
-require 'net/http'
-require 'zlib'
-require 'json'
 require 'generalMethods.rb'
 require 'ontology'
 
 ##########################
 #METHODS
 ##########################
-
 def predict_patient(predictions, training_set, threshold, transform, genes, genes_dictionary)
   results = {}
   predictions.each do |info|
-    if genes
-      info = genes_dictionary[info.shift]
-    end
-    sample = info.join(":")
-    chr = info[0]
-    pt_start = info[1].to_i
-    pt_stop = info[2].to_i
+    info = genes_dictionary[info.shift] if genes
+    chr, pt_start, pt_stop = info
     query = training_set[chr]
-    if !query.nil?
-      query.each do |hpo_start, hpo_stop, nodeID, hpo_code, association_score|
-        if (hpo_stop > pt_start && hpo_stop <= pt_stop) ||
-          (hpo_start >= pt_start && hpo_start < pt_stop) ||
-          (hpo_start <= pt_start && hpo_stop >= pt_stop) ||
-          (hpo_start > pt_start && hpo_stop < pt_stop) 
-          save = results[sample]
-          if save.nil?
-            results[sample] = []
-            if association_score.to_f >= threshold 
-              association_score = 10**(-association_score) if transform
-              results[sample] << [chr, pt_start, pt_stop].concat([hpo_code, association_score, hpo_start, hpo_stop])
-            end
-           #results[sample] = [chr, pt_start, pt_stop].concat([hpo_code, association_score, hpo_start, hpo_stop]).join("\t") if association_score.to_f >= threshold
-          else
-            #save << [chr, pt_start, pt_stop].concat([hpo_code, association_score, hpo_start, hpo_stop]).join("\t") if association_score.to_f >= threshold
-            if association_score.to_f >= threshold
-              association_score= 10**(-association_score) if transform
-              save << [chr, pt_start, pt_stop].concat([hpo_code, association_score, hpo_start, hpo_stop])
-            end
-          end
+    next if query.nil?
+    query.each do |hpo_start, hpo_stop, nodeID, hpo_code, association_score|
+      next if !coor_overlap?(pt_start, pt_stop, hpo_start, hpo_stop) 
+      if association_score >= threshold 
+        association_score = 10**(-association_score) if transform
+        record2save = [chr, pt_start, pt_stop, hpo_code, association_score, hpo_start, hpo_stop]
+        key = info.join(":")
+        save = results[key]
+        if save.nil?
+            results[key] = [record2save]
+        else
+            save << record2save
         end
       end
     end
@@ -60,9 +42,8 @@ end
 def translate_hpos_in_results(results, hpo)
   results.each do |coords, data|
     data.each do |info|
-      hpo_code = info[3]
-      hpo_name, rejected = hpo.translate_codes2names([hpo_code])
-      hpo_code.replace(hpo_name.first)
+      hpo_name, rejected = hpo.translate_codes2names([info[3]])
+      info[3] = hpo_name.first
     end
   end
 end
@@ -77,7 +58,7 @@ def generate_gene_locations(gene_location)
   return gene_locations
 end
 
-def generate_genes_dictionary(genes_with_kegg)
+def generate_genes_dictionary(gene_location, genes_with_kegg)
   gene_locations = generate_gene_locations(gene_location)
   genes_dictionary = {}
   genes_with_kegg.each do |geneID, annotInfo|
@@ -142,11 +123,6 @@ OptionParser.new do |opts|
     options[:training_file] = training_path
   end
 
-  options[:multiple_regions] = false
-    opts.on("-u", "--multiple_regions", "Set if multiple regions to analyze") do
-  options[:multiple_regions] = true
-  end
-
   opts.on_tail("-h", "--help", "Show this message") do
     puts opts
     exit
@@ -173,16 +149,32 @@ gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
 hpo = Ontology.new
 hpo.load_data(options[:hpo_file])
 training_set = load_training_file4regions(options[:training_file])
+
 genes_dictionary = {}
-genes_dictionary = generate_genes_dictionary(genes_with_kegg) if options[:input_genes]
+genes_dictionary = generate_genes_dictionary(gene_location, genes_with_kegg) if options[:input_genes]
 
 multiple_regions = []
 File.open(options[:prediction_file]).each do |line|
   line.chomp!
-  multiple_regions << line.split("\t")
-  options[:prediction_file] = multiple_regions
+  fields = line.split("\t")
+  if options[:input_genes]
+    fields[2] = fields[2].to_i
+    fields[3] = fields[3].to_i
+  else
+    fields[1] = fields[1].to_i
+    fields[2] = fields[2].to_i
+  end
+  multiple_regions << fields
 end
-results = predict_patient(options[:prediction_file], training_set, options[:association_limit], options[:transform_pvalues], options[:input_genes], genes_dictionary)
+
+results = predict_patient(
+  multiple_regions, 
+  training_set, 
+  options[:association_limit], 
+  options[:transform_pvalues], 
+  options[:input_genes], 
+  genes_dictionary
+)
 translate_hpos_in_results(results, hpo)
 
 results.each do |pred, values|
@@ -195,13 +187,11 @@ results.each do |pred, values|
   end
 end
 
-handler = File.open(options[:output_path], 'w')
+File.open(options[:output_path], 'w') do |f|
   results.each do |k, v|
-  handler.puts "Results for #{k}:"
-    v.each_with_index do |i, c|
-      if c < options[:top_results]
-        handler.puts i.join("\t")
-      end
+    f.puts "Results for #{k}:"
+    v.each_with_index do |i, c|      
+        f.puts i.join("\t") if c < options[:top_results]
     end
   end
-handler.close
+end

@@ -1,7 +1,22 @@
 require 'uri'
+require 'net/ftp'
+require 'net/http'
+require 'zlib'
+require 'json'
+
 #Common methods for predictors
 #Training file example = 9  131371492   131375954   HP:0010974  2.41161970596	9.3.A.5
 #1. Indexing by chr (region)
+def coor_overlap?(ref_start, ref_stop, start, stop)
+  overlap = false
+  if (stop > ref_start && stop <= ref_stop) ||
+    (start >= ref_start && start < ref_stop) ||
+    (start <= ref_start && stop >= ref_stop) ||
+    (start > ref_start && stop < ref_stop)
+    overlap = true
+  end
+  return overlap
+end
 
 def load_training_file4regions(training_file)
 	training_set = {}
