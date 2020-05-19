@@ -10,8 +10,7 @@ def format_patient_data(patient_data, options, hpo)
   total_terms = 0
   terms_with_more_specific_childs = 0
   patient_data.each do |pat_id, patient_record|
-    string_hpos, chr, start, stop = patient_record
-    hpos = string_hpos.split(options[:hpo_separator])
+    hpos, chr, start, stop = patient_record
 
     if options[:hpo_names]
       hpos, pat_rejected_hpos = hpo.translate_names2codes(hpos)
@@ -32,8 +31,6 @@ def format_patient_data(patient_data, options, hpo)
     suggested_childs[pat_id] = more_specific_childs  
     all_hpo.concat(hpos)
     patient_record[HPOS] = hpos
-    patient_record[START] = start.to_i if !start.nil?
-    patient_record[STOP] = stop.to_i if !stop.nil?
   end
   return all_hpo.uniq, suggested_childs, rejected_hpos.uniq, terms_with_more_specific_childs.fdiv(total_terms)
 end
@@ -61,7 +58,7 @@ def write_matrix_for_R(matrix, x_names, y_names, file)
   end
 end
 
-def process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic) # get ic and chromosomes
+def process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, patient_id_type) # get ic and chromosomes
   if options[:ic_stats] == 'freq_internal'
     ic_file = ENV['ic_file']
     ic_file = IC_FILE if ic_file.nil?
@@ -77,25 +74,29 @@ def process_clustered_patients(options, clustered_patients, patient_data, hpo, o
   multi_chromosome_patients = 0
   processed_clusters = 0
   clustered_patients.sort_by{|cl_id, pat_ids| pat_ids.length }.reverse.each do |cluster_id, patient_ids|
-    num_of_patients = patient_ids.length
-    next if num_of_patients == 1
+    next if patient_ids.length == 1
     chrs = Hash.new(0)
     all_phens = []
     profile_ics = []
+    processed_patients = []
     patient_ids.each do |pat_id|
-      patient = patient_data[pat_id]
-      phenotypes = patient[HPOS]
-      profile_ics << get_profile_ic(phenotypes, phenotype_ic)
-      #optional
-      if processed_clusters < options[:clusters2show_detailed_phen_data]
-        phen_names, rejected_codes = hpo.translate_codes2names(phenotypes)
-        all_phens << phen_names
+      patient = patient_data[pat_id]  
+      pat_id = pat_id.gsub(/_i\d+$/,'') if patient_id_type != 'generated'
+      if !processed_patients.include?(pat_id) # Check that current cluster member is not an additional mutation of a previous patient
+        processed_patients << pat_id 
+        phenotypes = patient[HPOS]
+        profile_ics << get_profile_ic(phenotypes, phenotype_ic)
+        if processed_clusters < options[:clusters2show_detailed_phen_data]
+          phen_names, rejected_codes = hpo.translate_codes2names(phenotypes) #optional
+          all_phens << phen_names
+        end
       end
       chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil?
     end
+    num_of_patients = processed_patients.length
+    next if num_of_patients == 1 # Check that current cluster only has one patient with several mutations
     top_cluster_phenotypes << all_phens if processed_clusters < options[:clusters2show_detailed_phen_data]
     all_ics << profile_ics
-    # STDERR.puts [cluster_id, num_of_patients, chr, count].inspect
     if !options[:chromosome_col].nil?
       multi_chromosome_patients += num_of_patients if chrs.length > 1
       chrs.each do |chr, count|

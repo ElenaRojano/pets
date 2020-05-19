@@ -141,7 +141,6 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
 # cnvs_lenght_to_plot_file = File.join(temp_folder, 'cnvs_lenght.txt')
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
-hpo_black_list = []
 hpo_file = ENV['hpo_file']
 hpo_file = HPO_FILE if hpo_file.nil?
 
@@ -149,7 +148,7 @@ hpo = Ontology.new
 hpo.load_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
 hpo.load_data(hpo_file)
 
-patient_data, patient_number = load_patient_cohort(options)
+patient_data = load_patient_cohort(options)
 cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
 hpo.load_profiles(get_uniq_hpo_profiles(patient_data))
 
@@ -159,7 +158,7 @@ onto_ic, freq_ic = hpo.get_ic_by_onto_and_freq(hpo_file)
 onto_ic_profile, freq_ic_profile = hpo.get_ic_profile_by_onto_and_freq
 
 clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 
-all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic)
+all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, options[:pat_id_col])
 
 summary_stats = get_summary_stats(patient_data, cohort_hpos, hpo)
 summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]

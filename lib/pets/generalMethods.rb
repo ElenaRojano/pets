@@ -540,31 +540,35 @@ def load_patient_cohort(options)
 	count = 0
 	fields2extract = get_fields2extract(options)
 	field_numbers = fields2extract.values
-  original_ids = []
-  File.open(options[:input_file]).each do |line|
-    line.chomp!
-    if options[:header] && count == 0
-      line.gsub!(/#\s*/,'') # correct comment like  headers
-      field_names = line.split("\t")
-      get_field_numbers2extract(field_names, fields2extract)
-      field_numbers = fields2extract.values
-    else
-      fields = line.split("\t")
-      pat_record = field_numbers.map{|n| fields[n]}
-      if fields2extract[:pat_id_col].nil?
-        pat_id = "pat_#{count}" #generate ids
-      else
-        original_id = pat_record.shift
-        original_ids << original_id
-        pat_id = original_id + "_i#{count}" # make sure that ids are uniq
-      end
-      patient_data[pat_id] = pat_record
-    end
-    count +=1
-  end
-  fields2extract[:pat_id_col].nil? ? patient_number = count : patient_number = original_ids.uniq.length
-  options[:pat_id_col] = 'generated' if fields2extract[:pat_id_col].nil?
-  return patient_data, patient_number
+	  File.open(options[:input_file]).each do |line|
+	    line.chomp!
+	    if options[:header] && count == 0
+	      line.gsub!(/#\s*/,'') # correct comment like  headers
+	      field_names = line.split("\t")
+	      get_field_numbers2extract(field_names, fields2extract)
+	      field_numbers = fields2extract.values
+	    else
+	      fields = line.split("\t")
+	      pat_record = field_numbers.map{|n| fields[n]}
+	      if fields2extract[:pat_id_col].nil?
+	        pat_id = "pat_#{count}" #generate ids
+	      else
+	        original_id = pat_record.shift
+	        pat_id = original_id + "_i#{count}" # make sure that ids are uniq
+	      end
+	      if !pat_record[0].nil? 
+	      	pat_record[0] = pat_record[0].split(options[:hpo_separator])
+	      else
+	      	pat_record[0] = []
+	      end
+	      pat_record[2] = pat_record[2].to_i if !options[:start_col].nil?
+	      pat_record[3] = pat_record[3].to_i if !options[:end_col].nil?
+	      patient_data[pat_id] = pat_record
+	    end
+	    count +=1
+	  end
+	  options[:pat_id_col] = 'generated' if fields2extract[:pat_id_col].nil?
+	  return patient_data
 end 
 
 def get_fields2extract(options)

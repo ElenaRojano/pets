@@ -1,13 +1,13 @@
 require 'obo_handler'
 
 class Ontology
-	attr_reader :term_level
+	attr_reader :term_level, :excluded_codes
 
 	def initialize()
-		@excluded_hpos = []
-		@hpo_storage = {}
+		@excluded_codes = []
+		@ont_data = {}
 		@term_level = {}
-		@hpo_parent_child_relations = {}
+		@term_parent_child_relations = {}
 		@name2code_dictionary = {}
 		@profiles = []
 		@onto_ic = {}
@@ -16,10 +16,10 @@ class Ontology
 	  	@freq_ic_profile = []
 	end
 
-	def load_black_list(excluded_hpo_file)
-		File.open(excluded_hpo_file).each do |line|
+	def load_black_list(excluded_codes_file)
+		File.open(excluded_codes_file).each do |line|
 			line.chomp!
-			@excluded_hpos << line
+			@excluded_codes << line
 		end
 	end
 
@@ -84,7 +84,7 @@ class Ontology
 		hpo_obsolete.each do |obsoleteID, data|
 			new_id = data[0]
 			obsolete_name = data[1]
-			info_for_obsolete = @hpo_storage[new_id]
+			info_for_obsolete = @ont_data[new_id]
 			unless info_for_obsolete.nil?
 				if info_for_obsolete[3].nil?
 					info_for_obsolete[3] = [obsolete_name]
@@ -92,31 +92,31 @@ class Ontology
 					info_for_obsolete[3] << obsolete_name unless info_for_obsolete[3].include?(obsolete_name)
 				end
 			end
-			info_for_obsolete = @hpo_storage[new_id]
-			@hpo_storage[obsoleteID] = info_for_obsolete
+			info_for_obsolete = @ont_data[new_id]
+			@ont_data[obsoleteID] = info_for_obsolete
 		end
 	end
 
 	def add_record2storage(id, name, is_a, syn, alt_ids)
-		if !@excluded_hpos.include?(id)
-			attributes = [id, name, is_a - @excluded_hpos, syn]
-			@hpo_storage[id] = attributes
+		if !@excluded_codes.include?(id)
+			attributes = [id, name, is_a - @excluded_codes, syn]
+			@ont_data[id] = attributes
 			alt_ids.each do |altid|
-				@hpo_storage[altid] = attributes
+				@ont_data[altid] = attributes
 			end
 		end 
 	end
 
 	def get_child_parent_relations
 	# for getting hpo childs
-		@hpo_storage.each do |hpo_code, hpo_data|
+		@ont_data.each do |hpo_code, hpo_data|
 			id, name, is_a, syn = hpo_data
 			next if is_a.nil?
 			hpo_child = [id, name]
 			is_a.each do |par_hpo_code|
-				query = @hpo_parent_child_relations[par_hpo_code]
+				query = @term_parent_child_relations[par_hpo_code]
 				if query.nil?
-					@hpo_parent_child_relations[par_hpo_code] = [hpo_child]
+					@term_parent_child_relations[par_hpo_code] = [hpo_child]
 				else
 					query << hpo_child
 				end
@@ -125,7 +125,7 @@ class Ontology
 	end
 
 	def extract_ontology_levels_info
-	  @hpo_storage.each do |hpo_id, hpo_data|
+	  @ont_data.each do |hpo_id, hpo_data|
 	    parental_terms = hpo_data[2]
 	    unless parental_terms.empty?
 	      search_for_parentals(parental_terms.first, 0, hpo_id)
@@ -158,7 +158,7 @@ class Ontology
 	end
 
 	def create_hpo_dictionary
-		@hpo_storage.each do |hpo, metadata|
+		@ont_data.each do |hpo, metadata|
 			hpo_code, hpo_name, hpo_parents, hpo_synonyms = metadata 
 			@name2code_dictionary[hpo_name] = hpo_code
 			next if hpo_synonyms.nil? # To remove hpos without parents (i.e: Obsolete HPO)
@@ -186,7 +186,7 @@ class Ontology
 		term_names = []
 		rejected_codes = []
 	    terms.each do |term|
-	      term_data = @hpo_storage[term]
+	      term_data = @ont_data[term]
 	      if term_data.nil?
 	        STDERR.puts "WARNING: ontology code '#{term}' not exists."
 	        rejected_codes << term
@@ -201,7 +201,7 @@ class Ontology
 	  checked_codes = []
 	  rejected_hpos = []
 	  hpos.each do |hpo_code|
-	    hpo_data = @hpo_storage[hpo_code]
+	    hpo_data = @ont_data[hpo_code]
 	    if hpo_data.nil?
 	      rejected_hpos << hpo_code
 	    else
@@ -214,7 +214,7 @@ class Ontology
 
 	def get_parents(term)
 		parents = []
-		term_data = @hpo_storage[term]
+		term_data = @ont_data[term]
 		term_data[2].each do |par_hpo_code, par_hpo_name|
 			parents << par_hpo_code
 			parents.concat(get_parents(par_hpo_code))
@@ -228,7 +228,7 @@ class Ontology
 	  profs.each do |profile|
 	  	names = []
 	    profile.each do |hpo|
-	      hpo_data = @hpo_storage[hpo]
+	      hpo_data = @ont_data[hpo]
 	      if hpo_data.nil?
 	        STDERR.puts "WARNING: hpo code '#{hpo}' not exists."
 	      else
@@ -250,7 +250,7 @@ class Ontology
 	  n_profiles = @profiles.length
 	  freqs = []
 	  stats.each do |term, count|
-	  	term = @hpo_storage[term][1] if names
+	  	term = @ont_data[term][1] if names
 	    freqs << [term, count.fdiv(n_profiles)*100]
 	  end
 	  freqs.sort!{|h1, h2| h2[1] <=> h1[1]}
@@ -260,9 +260,9 @@ class Ontology
 	def get_more_specific_childs_table(hpo_codes)
 	  more_specific_hpo = []
 	  hpo_codes.each do |hpo_code|
-	    hpo_data = @hpo_storage[hpo_code]
+	    hpo_data = @ont_data[hpo_code]
 	    main_hpo_code, name = hpo_data
-        childs = @hpo_parent_child_relations[main_hpo_code]
+        childs = @term_parent_child_relations[main_hpo_code]
         childs.nil? ? specific_childs = [] : specific_childs = childs
         more_specific_hpo << [[main_hpo_code, name], specific_childs]
       end
@@ -323,7 +323,7 @@ class Ontology
 	private
 
 	def search_for_parentals(parental_id, counter, hpo_id)
-	  hpo_data = @hpo_storage[parental_id] 
+	  hpo_data = @ont_data[parental_id] 
 	  if !hpo_data.nil?
 	    parental_id = hpo_data[2].first
 	    counter += 1

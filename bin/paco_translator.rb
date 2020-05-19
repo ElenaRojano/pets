@@ -3,37 +3,39 @@
 ROOT_PATH = File.dirname(__FILE__)
 EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
-$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'gephepred'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'simnetome', 'lib'))
 
 require 'generalMethods.rb'
 require 'optparse'
+require 'ontology'
 
 ###############
 #METHODS
 ###############
 
-def translate_codes_to_terms(patient_data, hpo_storage)
+def translate_hpo(patient_data, hpo, translate)
 	patients_with_hpo_names = {}
-	hpo_names = []
-	patient_data.each do |patientID, hpos_and_cnvs|
-		hpos = hpos_and_cnvs.shift.split('|')
-		hpos.each do |hpo|
-			hpo_names << hpo_storage[hpo][1]
-		end
-		hpos_and_cnvs << hpo_names.join('|')
-		patients_with_hpo_names[patientID] = hpos_and_cnvs
-		hpo_names = []
-	end
-	return patients_with_hpo_names
+	patient_data.each do |patientID, patient_record|
+		hpos, chr, start, stop = patient_record
+    if translate == 'names'
+      hpos, rejected = hpo.translate_codes2names(hpos)
+    elsif translate =='codes'
+      hpos, rejected = hpo.translate_names2codes(hpos)
+      STDERR.puts(" The ontology names '#{rejected.join(',')}' were not found") if !rejected.empty?
+    end
+    patient_record[0] = hpos
+  end
 end
 
 def save_translated_file(patients_with_hpo_names, output_file)
-	handler = File.open(output_file, 'w')
-	patients_with_hpo_names.each do |id, data|
-		patientID = id.gsub(/_i[0-9]/,'')
-		handler.puts "#{patientID}\t#{data.join("\t")}"
+	File.open(output_file, 'w') do |f|
+  	patients_with_hpo_names.each do |id, patient_record|
+      hpos, chr, start, stop = patient_record
+  		id = id.gsub(/_i[0-9]+$/,'')
+      f.puts "#{id}\t#{hpos.join('|')}\t#{[chr, start, stop].join("\t")}"
+  	end
 	end
-	handler.close
 end
 
 ###############
@@ -60,7 +62,7 @@ OptionParser.new do |opts|
   end
   
   options[:header] = true
-  opts.on("-H", "--header", "Set if the file has a line header. Default true") do 
+  opts.on("-H", "--header", "File has a line header. Default true") do 
     options[:header] = false
   end
 
@@ -84,19 +86,27 @@ OptionParser.new do |opts|
   	options[:start_col] = data
   end
 
+  options[:hpo_separator] = '|'
+  opts.on("-S", "--hpo_separator STRING", "Set which character must be used to split the HPO profile. Default '|'") do |data|
+    options[:hpo_separator] = data
+  end
 
+  options[:translate] = nil
+  opts.on("-t", "--translate STRING", "Set 'names' to translate from hpo codes to names or set 'codes' to translate from hpo names to codes. By default, ther is not translation") do |data|
+    options[:translate] = data
+  end
 end.parse!
-
 
 ###############
 #MAIN
 ###############
+hpo_file = ENV['hpo_file']
+hpo_file = HPO_FILE if hpo_file.nil?
 
-hpo_storage = load_hpo_file(HPO_FILE)
-patient_data, $patient_number = load_patient_cohort(options)
-patients_with_hpo_names = translate_codes_to_terms(patient_data, hpo_storage)
-
-save_translated_file(patients_with_hpo_names, options[:output_file])
-
-
-Process.exit	
+patient_data = load_patient_cohort(options)
+if !options[:translate].nil?
+  hpo = Ontology.new
+  hpo.load_data(hpo_file)
+  translate_hpo(patient_data, hpo, options[:translate])
+end
+save_translated_file(patient_data, options[:output_file])
