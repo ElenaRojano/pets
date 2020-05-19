@@ -1,9 +1,8 @@
 <%
 	def get_hpo_link(hpo_code)
 		# STDERR.puts hpo_code.inspect
-		if hpo_code == '-'
-			link = '-'
-		else
+		link = '-'
+		if hpo_code != '-'
 			link = "<a href=\"http://compbio.charite.de/hpoweb/showterm?id=#{hpo_code}\">#{hpo_code}</a>"
 		end
 		return link
@@ -137,11 +136,14 @@
 		gene_var = @hash_vars[:genes_with_kegg_data]
 		table(id: :merged_regions, header: true, border: 2,
 		cell_align: %w(center center center left center center)) do |data|
-		hpo_metadata = @hash_vars[:hpo_metadata]
+		hpo = @hash_vars[:hpo]
 		data.each_with_index do |row, row_number|
 			row.each_with_index do |cell, i|
 				if i == 3
-					row[i] = cell.map{|h| "#{get_hpo_link(h)}: #{hpo_metadata[h][1]}"}.join("\n<br>")
+					row[i] = cell.map{|h|
+						hpo_names, rejected = hpo.translate_codes2names([h])
+						"#{get_hpo_link(h)}: #{hpo_names.first}"
+					}.join("\n<br>")
 				elsif i == 4
 					row[i] = cell.map{|a| 
 						if a.abs > 0.01

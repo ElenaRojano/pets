@@ -5,36 +5,14 @@
 REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'simnetome', 'lib'))
 
 require 'generalMethods.rb'
 require 'phen2reg_methods.rb'
 require 'optparse'
 require 'report_html'
+require 'ontology'
 
-
-##########################
-#METHODS
-##########################
-
-def calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, min_hpo_recovery_percentage, patient_number)     
-  records_to_delete = []
-  counter = 0
-  adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
-    hpo_coincidences = patient_original_phenotypes & hpo_list
-    original_hpo_recovery_percentage = hpo_coincidences.length / patient_original_phenotypes.length.to_f * 100
-    records_to_delete << counter if original_hpo_recovery_percentage < min_hpo_recovery_percentage
-    query = predicted_hpo_percentage[patient_number] 
-    if query.nil?
-     predicted_hpo_percentage[patient_number] = [original_hpo_recovery_percentage]
-    else
-     query << original_hpo_recovery_percentage
-    end   
-    counter += 1 
-  end
-  records_to_delete.reverse_each do |record_number|
-    adjacent_regions_joined.delete_at(record_number)
-  end
-end
 
 ##########################
 #OPT-PARSER
@@ -173,20 +151,15 @@ all_paths[:gene_location] = File.join(all_paths[:external_data], 'gene_location.
 #MAIN
 ##########################
 
-if File.exist?(options[:prediction_data])
+#- Loading patient profiles
+#------------------------------
+if File.exist?(options[:prediction_data]) # From file
   if !options[:multiple_profile]
     options[:prediction_data] = [File.open(options[:prediction_data]).readlines.map!{|line| line.chomp}]
-    #STDERR.puts options[:prediction_data].inspect
   else
-    multiple_profiles = []
-    File.open(options[:prediction_data]).each do |line|
-      line.chomp!
-      multiple_profiles << line.split('|')
-    end
-    options[:prediction_data] = multiple_profiles
+    options[:prediction_data] = File.open(options[:prediction_data]).readlines.map!{|line| line.chomp.split('|')}
   end
-else
-  # if you want to add phenotypes through the terminal
+else # if you want to add phenotypes through the terminal
   if !options[:multiple_profile]
     options[:prediction_data] = [options[:prediction_data].split('|')]
   else
@@ -194,14 +167,12 @@ else
   end
 end
 
-##########################
 #- Loading data
-
-hpo_storage = load_hpo_file(options[:hpo_file])
-if options[:quality_control]
-  hpo_child_metadata = get_child_parent_relations(hpo_storage)
-  hpos_ci_values = load_hpo_ci_values(options[:information_coefficient])
-end
+#------------------------------
+hpo = Ontology.new
+hpo.load_data(options[:hpo_file])
+trainingData = load_training_file4HPO(options[:training_file], options[:best_thresold])
+hpos_ci_values = load_hpo_ci_values(options[:information_coefficient]) if options[:quality_control]
 
 genes_with_kegg = {}
 gene_location = {}
@@ -209,43 +180,25 @@ if options[:retrieve_kegg_data]
  gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
 end
 
-# hpo_dictionary = load_hpo_dictionary_name2code(options[:hpo2name_file]) if options[:hpo_is_name]
-trainingData = load_training_file4HPO(options[:training_file], options[:best_thresold])
-
-##########################
 #- HPO PROFILE ANALYSIS
-
+#---------------------------------
 phenotypes_by_patient = {}
 predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
-  phenotypes_by_patient[patient_number] = patient_hpo_profile
-  # STDERR.puts patient_hpo_profile.inspect
   if options[:hpo_is_name]
-    translated_hpos = []
-    hpo_dictionary = create_hpo_dictionary(hpo_storage)
-    patient_hpo_profile.each_with_index do |name, i|
-      hpo_code = hpo_dictionary[name]
-      if hpo_code.nil?
-        #STDERR.puts "Warning! Invalid HPO name: #{name}"
-        hpo_code = nil
-      end
-      patient_hpo_profile[i] = hpo_code
-     end
-     patient_hpo_profile.compact!
-   end
+    patient_hpo_profile, rejected = hpo.translate_names2codes(hpos)
+    STDERR.puts "Phenotypes #{rejected.join(",")} in patient #{patient_number} not exist"
+  end
 
-  #HPO quality control
-  #---------------------------
+  phenotypes_by_patient[patient_number] = patient_hpo_profile
+  
   characterised_hpos = []
-  #hpo_metadata = []
   if options[:quality_control]
-    #characterised_hpos, hpo_metadata = hpo_quality_control(options[:prediction_data], options[:hpo2name_file], options[:information_coefficient])
-    # characterised_hpos, hpo_storage = hpo_quality_control(patient_hpo_profile, hpo_storage, hpo_child_metadata, hpos_ci_values)
-    characterised_hpos = hpo_quality_control(patient_hpo_profile, hpo_storage, hpo_child_metadata, hpos_ci_values)
-    output_quality_control = File.open(options[:output_quality_control], "w")
-    header = ["HPO name", "HPO code", "Exists?", "CI value", "Is child of", "Childs"]
-    output_quality_control.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
-    output_quality_control.close
+    characterised_hpos = hpo_quality_control(patient_hpo_profile, hpos_ci_values, hpo)
+    File.open(options[:output_quality_control], "w") do |f|
+      header = ["HPO name", "HPO code", "Exists?", "CI value", "Is child of", "Childs"]
+      f.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
+    end
   end
 
   #Prediction steps
@@ -267,14 +220,8 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
     null_value = 0
     hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile, null_value)
     if options[:print_matrix]
-      File.open(options[:output_matrix] + "_#{patient_number}", "w") do |f|
-        f.puts "Region\t#{patient_hpo_profile.join("\t")}"
-        regionAttributes_array = regionAttributes.values
-        hpo_region_matrix.each_with_index do |association_values, i|
-          chr, start, stop = regionAttributes_array[i]
-          f.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
-        end
-      end
+      output = options[:output_matrix] + "_#{patient_number}"
+      save_patient_matrix(output, patient_hpo_profile, regionAttributes, hpo_region_matrix)
     end
 
     scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree], null_value)
@@ -317,12 +264,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
       chr_genes = gene_location[ref_chr]
       genes = []
       chr_genes.each do |gene_name, gene_start, gene_stop|
-          if (ref_start > gene_start && ref_stop < gene_stop) ||
-            (ref_start < gene_start && ref_stop > gene_stop) ||
-            (ref_start < gene_start && ref_stop > gene_start) ||
-            (ref_start < gene_stop && ref_stop > gene_stop)
-            genes << gene_name
-          end
+            genes << gene_name if coor_overlap?(ref_start, ref_stop, gene_start, gene_stop)
       end
       genes_found << genes
     end
@@ -344,7 +286,7 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
   #-------------------
   ####PLEASE CHECK THIS METHOD!
 
-  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo_storage, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
+  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
 end # end each_with_index
 
 if options[:write_hpo_recovery_file]

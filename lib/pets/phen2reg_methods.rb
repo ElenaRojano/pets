@@ -227,61 +227,59 @@ def join_regions(regions)
 end
 
 # def hpo_quality_control(prediction_data, hpo_metadata_file, information_coefficient_file)
-def hpo_quality_control(prediction_data, hpo_metadata, hpo_child_metadata, hpos_ci_values)
+def hpo_quality_control(prediction_data, hpos_ci_values, hpo)
 	characterised_hpos = []
 	##information_coef_file= hpo_code, ci
 	##prediction_data = [hpo1, hpo2, hpo3...]
-	##hpo_metadata = {hpo_code => [phenotype, relations]}, relations = [hpo_code_relation, name_relation]
-	# hpo_metadata = load_hpo_metadata(hpo_metadata_file)
-	# hpo_child_metadata = inverse_hpo_metadata(hpo_metadata)
 	# hpos_ci_values = load_hpo_ci_values(information_coefficient_file)
 	prediction_data.each do |hpo_code|
-		tmp = []
+		names, rejected = hpo.translate_codes2names([hpo_code])
+		tmp = [names.first, hpo_code] # col hpo name, col hpo code
 		ci = hpos_ci_values[hpo_code]
-		main_hpo_code, hpo_name, relations = hpo_metadata[hpo_code]
-		tmp << hpo_name # col hpo name
-		tmp << hpo_code # col hpo code
 		unless ci.nil? # col exists? and ci values
-			tmp << "yes"
-			tmp << ci
+			tmp.concat(["yes", ci])
 		else
-			tmp << "no"
-			tmp << "-"
+			tmp.concat(["no", "-"])
 		end
-		parent = check_parents(relations, prediction_data, hpo_metadata)		
-		parent << "-" if parent.empty?
+		parent = prediction_data & hpo.get_parents(hpo_code)
+		if parent.empty?
+			parent << "-"
+		else
+			n, r = hpo.translate_codes2names(parent)
+			parent = parent.zip(n) # Combine code ids with hpo names
+		end
 		tmp << parent # col parents
-		childs = hpo_child_metadata[hpo_code]
-		if childs.nil?
-			childs = []
-		else
-			childs = childs
-		end
-		tmp << childs
+		specific_childs = hpo.get_more_specific_childs_table([hpo_code])
+		tmp << specific_childs.first.last
 		characterised_hpos << tmp
 	end
-	# return characterised_hpos, hpo_metadata
 	return characterised_hpos
 end
 
-def check_parents(relations, prediction_data, hpo_metadata)
-	parent = []
-	relations.each do |par_hpo_code, par_hpo_name|
-		if prediction_data.include?(par_hpo_code)
-			parent << [par_hpo_code, par_hpo_name]
-		end
-		grand_par_hpo = hpo_metadata[par_hpo_code]
-		if !grand_par_hpo.nil?
-			parent.concat(check_parents(grand_par_hpo.last, prediction_data, hpo_metadata))
-		end
-	end
-	return parent
+def calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, min_hpo_recovery_percentage, patient_number)     
+  records_to_delete = []
+  counter = 0
+  adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
+    hpo_coincidences = patient_original_phenotypes & hpo_list
+    original_hpo_recovery_percentage = hpo_coincidences.length / patient_original_phenotypes.length.to_f * 100
+    records_to_delete << counter if original_hpo_recovery_percentage < min_hpo_recovery_percentage
+    query = predicted_hpo_percentage[patient_number] 
+    if query.nil?
+     predicted_hpo_percentage[patient_number] = [original_hpo_recovery_percentage]
+    else
+     query << original_hpo_recovery_percentage
+    end   
+    counter += 1 
+  end
+  records_to_delete.reverse_each do |record_number|
+    adjacent_regions_joined.delete_at(record_number)
+  end
 end
 
-def report_data(characterised_hpos, hpo_associated_regions, html_file, hpo_metadata, genes_with_kegg_data, pathway_stats)
+def report_data(characterised_hpos, hpo_associated_regions, html_file, hpo, genes_with_kegg_data, pathway_stats)
 	container = {:characterised_hpos => characterised_hpos,
 	 	:merged_regions => hpo_associated_regions,
-	 	:hpo_metadata => hpo_metadata,
+	 	:hpo => hpo,
 	 	:genes_with_kegg_data => genes_with_kegg_data,
 	 	:pathway_stats => pathway_stats
 	 }
@@ -291,142 +289,13 @@ def report_data(characterised_hpos, hpo_associated_regions, html_file, hpo_metad
 	report.write(html_file)
 end
 
-##############################################################################
-##############################################################################
-##### OLD CODE FOR JOIN REGIONS BY BORDERS
-##############################################################################
-##############################################################################
-
-# def sorting_regions_by_shared_hpos(region2hpo)
-# 	#if regions share the same hpos, sort regions from lowest to highest
-# 	#this method returns an array for its use in cluster_regions_by_common_hpos method
-# 	arr_region2hpo = []
-# 	region2hpo.each do |region, hpos|
-# 		arr_region2hpo << [region, hpos.sort]
-# 	end
-# 	arr_region2hpo.sort!{|r1, r2| r1.last <=> r2.last}
-# 	# # arr_region2hpo = [[1.1.A.1, [hpo1, hpo2, hpo3]], [1.2.A.1, [hpo1, hpo2, hpo3]]...]
-# 	return arr_region2hpo
-# end
-
-# def cluster_regions_by_common_hpos(arr_region2hpo)
-# 	#method for grouping hpos within different locations
-# 	regions_by_hpos = {}
-# 	last_hpos = []
-# 	regions = []
-# 	all_regions = []
-# 	arr_region2hpo.each do |region, hpos|
-# 		all_regions << region
-# 		if last_hpos == hpos
-# 			regions << region
-# 		else
-# 			regions_by_hpos[last_hpos] = regions if !last_hpos.empty?
-# 			regions = [region]
-# 		end
-# 		last_hpos = hpos 
-# 	end
-# 	regions_by_hpos[last_hpos] = regions
-# 	#puts regions_by_hpos.inspect
-# 	# #regions_by_hpos = {[hpo1, hpo2, hpo3] => [1.1.A.1, 1.2.A.4, 1.3.A.12]...}
-# 	return regions_by_hpos
-# end
-
-# def prepare_regions_for_profile_analysis(region2hpo, regionAttributes, association_scores, weight_style)
-# 	# region2hpo = {region => [hpo1, hpo2...]}
-# 	# regionAttributes = {region => [chr, start, stop, patients_number, region_length, region]}
-# 	hpo_associated_regions = []
-# 	arr_region2hpo = sorting_regions_by_shared_hpos(region2hpo)
-# 	regions_by_hpos = cluster_regions_by_common_hpos(arr_region2hpo)
-# 	regions_by_hpos.each do |hpos_list, regions|
-# 		regionIDs = []
-# 		regions_lengths = []
-# 		patients_numbers = []
-# 		region_attributes = regions.map { |region| regionAttributes[region] }
-# 		region_attributes.each do |attributes|
-# 			cur_chr, cur_start, cur_stop, cur_patients_number, cur_region_length, cur_regionID = attributes
-# 			add_region(hpo_associated_regions, cur_chr, cur_start, cur_stop, hpos_list, [cur_regionID], association_scores, [cur_region_length], [cur_patients_number], weight_style)
-# 		end
-# 	end
-# 	#puts hpo_associated_regions.inspect
-# 	return hpo_associated_regions
-# end
-
-# def join_regions_by_borders(region2hpo, regionAttributes, association_scores, weight_style)
-# 	# region2hpo = {region => [hpo1, hpo2...]}
-# 	# regionAttributes = {region => [chr, start, stop, patients_number, region_length, region]}
-# 	joined_regions_by_borders = []
-# 	arr_region2hpo = sorting_regions_by_shared_hpos(region2hpo)
-# 	regions_by_hpos = cluster_regions_by_common_hpos(arr_region2hpo)
-# 	regions_by_hpos.each do |hpos_list, regions|
-# 		regionIDs = []
-# 		regions_lengths = []
-# 		patients_numbers = []
-# 		region_attributes = regions.map { |region| regionAttributes[region] }
-# 		region_attributes.sort! { |r1, r2| [r1[0], r1[1]] <=> [r2[0], r2[1]] }
-# 		tmp_chr = nil
-# 		tmp_start = nil
-# 		tmp_stop = nil
-# 		region_attributes.each_with_index do |attributes, counter|
-# 			break if counter + 1 == region_attributes.length
-# 			cur_chr, cur_start, cur_stop, cur_patients_number, cur_region_length, cur_regionID = attributes
-# 			next_chr, next_start, next_stop, next_patients_number, next_region_length, next_regionID = region_attributes[counter + 1]
-# 			if cur_chr == next_chr
-# 				if cur_stop == next_start || cur_stop == next_start + 1
-# 					tmp_chr = cur_chr
-# 					tmp_start = cur_start if tmp_start.nil?
-# 					tmp_stop = cur_stop
-# 				else
-# 					add_region(joined_regions_by_borders, tmp_chr, tmp_start, tmp_stop, hpos_list, regionIDs, association_scores, regions_lengths, patients_numbers, weight_style)
-# 					tmp_chr = nil
-# 					tmp_start = nil
-# 					tmp_stop = nil
-# 				end
-# 			else
-# 				add_region(joined_regions_by_borders, tmp_chr, tmp_start, tmp_stop, hpos_list, regionIDs, association_scores, regions_lengths, patients_numbers, weight_style)
-# 				tmp_chr = nil
-# 				tmp_start = nil
-# 				tmp_stop = nil
-# 			end
-# 			regionIDs << cur_regionID if regionIDs.empty?
-# 			regionIDs << next_regionID
-# 			regions_lengths << cur_region_length if regions_lengths.empty?
-# 			regions_lengths << next_region_length
-# 			patients_numbers << cur_patients_number if patients_numbers.empty?
-# 			patients_numbers << next_patients_number
-# 		end
-# 		add_region(joined_regions_by_borders, tmp_chr, tmp_start, tmp_stop, hpos_list, regionIDs, association_scores, regions_lengths, patients_numbers, weight_style)
-# 	end
-# 	#puts joined_regions_by_borders.inspect	
-# 	return joined_regions_by_borders
-# end
-
-# def add_region(hpo_associated_regions, tmp_chr, tmp_start, tmp_stop, hpos_list, regionIDs, association_scores, region_lengths, patients_numbers, weight_style)	
-# 	#region_lengths = number of regions that have the same HPOs
-# 	unless tmp_chr.nil? && tmp_start.nil? && tmp_stop.nil?
-# 		association_values_by_region = regionIDs.map {|r| association_scores[r]}
-# 		weighted_association_scores = []
-# 		hpos_list.each do |hpo|
-# 			scores = association_values_by_region.map{|hpo_scores| hpo_scores[hpo] }
-# 			weighted_score = 0
-# 			weight = 0
-# 			if scores.length == 1
-# 				weighted_score = scores.first
-# 				weight = 1
-# 			else
-# 				scores.each_with_index do |s, i|
-# 					if weight_style == 'double'
-# 						weighted_score += s * region_lengths[i] * patients_numbers[i]
-# 						weight += region_lengths[i] * patients_numbers[i]
-# 					elsif weight_style == 'simple'
-# 						weighted_score += s * region_lengths[i]
-# 						weight += region_lengths[i]
-# 					else
-# 						abort("Invalid weight method: #{weight_style}")
-# 					end
-# 				end
-# 			end
-# 			weighted_association_scores << weighted_score/weight			
-# 		end
-# 		hpo_associated_regions << [tmp_chr, tmp_start, tmp_stop, hpos_list, weighted_association_scores]
-# 	end
-# end
+def save_patient_matrix(output, patient_hpo_profile, regionAttributes, hpo_region_matrix)
+	File.open(output, "w") do |f|
+		f.puts "Region\t#{patient_hpo_profile.join("\t")}"
+		regionAttributes_array = regionAttributes.values
+		hpo_region_matrix.each_with_index do |association_values, i|
+		  chr, start, stop = regionAttributes_array[i]
+		  f.puts "#{chr}:#{start}-#{stop}\t#{association_values.join("\t")}"
+		end
+	end
+end

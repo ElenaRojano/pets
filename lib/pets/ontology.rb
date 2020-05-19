@@ -212,6 +212,16 @@ class Ontology
 	  return checked_codes, rejected_hpos
 	end
 
+	def get_parents(term)
+		parents = []
+		term_data = @hpo_storage[term]
+		term_data[2].each do |par_hpo_code, par_hpo_name|
+			parents << par_hpo_code
+			parents.concat(get_parents(par_hpo_code))
+		end
+		return parents
+	end
+
 	def get_term_names_from_profiles(profs = [])
 	  profs = @profiles if profs.empty?
 	  profiles_with_names = []
