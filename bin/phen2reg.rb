@@ -81,6 +81,11 @@ OptionParser.new do |opts|
     options[:output_matrix] = output_matrix
   end
 
+  options[:output_path] = './'
+  opts.on("-O", "--output_path PATH", "General output folder path, takes precedence for other options") do |output|
+    options[:output_path] = output
+  end
+
   options[:prediction_data] = nil
   #chr\tstart\tstop
   opts.on("-p", "--prediction_file PATH", "Input data with HPO codes for predicting their location. It can be either, a file path or string with HPO separated by pipes (|)") do |input_path|
@@ -146,6 +151,9 @@ all_paths[:biosystems_info] = File.join(all_paths[:external_data], 'bsid2info.gz
 all_paths[:gene_data_with_pathways] = File.join(all_paths[:external_data], 'gene_data_with_pathways.gz')
 all_paths[:gene_location] = File.join(all_paths[:external_data], 'gene_location.gz')
 
+output_folder = File.expand_path(options[:output_path])
+Dir.mkdir(output_folder) if !File.exists?(output_folder)
+
 ##########################
 #MAIN
 ##########################
@@ -184,116 +192,122 @@ end
 phenotypes_by_patient = {}
 predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
-  if options[:hpo_is_name]
-    patient_hpo_profile, rejected = hpo.translate_names2codes(hpos)
-    STDERR.puts "Phenotypes #{rejected.join(",")} in patient #{patient_number} not exist"
-  end
-
-  phenotypes_by_patient[patient_number] = patient_hpo_profile
-  
-  characterised_hpos = []
-  if options[:quality_control]
-    characterised_hpos = hpo_quality_control(patient_hpo_profile, hpos_ci_values, hpo)
-    File.open(options[:output_quality_control], "w") do |f|
-      header = ["HPO name", "HPO code", "Exists?", "CI value", "Is child of", "Childs"]
-      f.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
-    end
-  end
-
-  #Prediction steps
-  #---------------------------
-  hpo_regions = search4HPO(patient_hpo_profile, trainingData)
-  if hpo_regions.empty?
-    puts "ProfID:#{patient_number}\tResults not found"
-  elsif options[:group_by_region] == false
-    hpo_regions.each do |hpo, regions|
-      regions.each do |region|
-        puts "ProfID:#{patient_number}\t#{hpo}\t#{region.join("\t")}"
+      if options[:hpo_is_name]
+        patient_hpo_profile, rejected = hpo.translate_names2codes(hpos)
+        STDERR.puts "Phenotypes #{rejected.join(",")} in patient #{patient_number} not exist"
       end
-    end
-  elsif options[:group_by_region] == true
-    region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
-    #STDERR.puts patient_hpo_profile.inspect
-    #add_parentals_of_not_found_hpos_in_regions(patient_hpo_profile, trainingData, region2hpo, regionAttributes, association_scores, hpo_metadata)
-    #STDERR.puts patient_hpo_profile.inspect
-    null_value = 0
-    hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile, null_value)
-    if options[:print_matrix]
-      output = options[:output_matrix] + "_#{patient_number}"
-      save_patient_matrix(output, patient_hpo_profile, regionAttributes, hpo_region_matrix)
-    end
 
-    scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree], null_value)
-    if regionAttributes.empty?
-      puts "ProfID:#{patient_number}\tResults not found"
-    else    
-      adjacent_regions_joined = []
-      regionAttributes.each do |regionID, attributes|
-        chr, start, stop, patient_ID, region_length, score = attributes
-        association_values = association_scores[regionID]
-        adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
-      end
-      adjacent_regions_joined = join_regions(adjacent_regions_joined) if options[:join_adyacent_regions] # MOVER A ANTES DE CONSTRUIR LA MATRIZ
+      phenotypes_by_patient[patient_number] = patient_hpo_profile
       
-      #Ranking
-      if options[:ranking_style] == 'fisher'
-        adjacent_regions_joined.sort!{|r1, r2| r1.last <=> r2.last}
-      else
-        adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
-      end
-      patient_original_phenotypes = phenotypes_by_patient[patient_number]
-      calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, options[:hpo_recovery], patient_number)
-      if adjacent_regions_joined.empty?
-        puts "ProfID:#{patient_number}\tResults not found"
-      else
-        adjacent_regions_joined = adjacent_regions_joined.shift(options[:max_number]) if !options[:max_number].nil?
-        adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
-          puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
+      characterised_hpos = []
+      if options[:quality_control]
+        characterised_hpos = hpo_quality_control(patient_hpo_profile, hpos_ci_values, hpo)
+        File.open(File.join(output_folder, options[:output_quality_control]), "w") do |f|
+          header = ["HPO name", "HPO code", "Exists?", "CI value", "Is child of", "Childs"]
+          f.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
         end
       end
-    end
-  end #elsif
 
-  pathway_stats = {}
-  if options[:retrieve_kegg_data]
-    genes_found = []
-    genes_found_attributes = {}
-    adjacent_regions_joined.each do |adjacent_region|
-      ref_chr, ref_start, ref_stop = adjacent_region
-      chr_genes = gene_location[ref_chr]
-      genes = []
-      chr_genes.each do |gene_name, gene_start, gene_stop|
-            genes << gene_name if coor_overlap?(ref_start, ref_stop, gene_start, gene_stop)
+      #Prediction steps
+      #---------------------------
+      hpo_regions = search4HPO(patient_hpo_profile, trainingData)
+      if hpo_regions.empty?
+        puts "ProfID:#{patient_number}\tResults not found"
+      elsif options[:group_by_region] == false
+        hpo_regions.each do |hpo, regions|
+          regions.each do |region|
+            puts "ProfID:#{patient_number}\t#{hpo}\t#{region.join("\t")}"
+          end
+        end
+      elsif options[:group_by_region] == true
+        region2hpo, regionAttributes, association_scores = group_by_region(hpo_regions)
+        #STDERR.puts patient_hpo_profile.inspect
+        #add_parentals_of_not_found_hpos_in_regions(patient_hpo_profile, trainingData, region2hpo, regionAttributes, association_scores, hpo_metadata)
+        #STDERR.puts patient_hpo_profile.inspect
+        null_value = 0
+        hpo_region_matrix = generate_hpo_region_matrix(region2hpo, association_scores, patient_hpo_profile, null_value)
+        if options[:print_matrix]
+          mat_output = File.join(output_folder, options[:output_matrix]) + "_#{patient_number}"
+          save_patient_matrix(mat_output, patient_hpo_profile, regionAttributes, hpo_region_matrix)
+        end
+
+        scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree], null_value)
+        if regionAttributes.empty?
+          puts "ProfID:#{patient_number}\tResults not found"
+        else    
+          adjacent_regions_joined = []
+          regionAttributes.each do |regionID, attributes|
+            chr, start, stop, patient_ID, region_length, score = attributes
+            association_values = association_scores[regionID]
+            adjacent_regions_joined << [chr, start, stop, association_values.keys, association_values.values, score]
+          end
+          adjacent_regions_joined = join_regions(adjacent_regions_joined) if options[:join_adyacent_regions] # MOVER A ANTES DE CONSTRUIR LA MATRIZ
+          
+          #Ranking
+          if options[:ranking_style] == 'fisher'
+            adjacent_regions_joined.sort!{|r1, r2| r1.last <=> r2.last}
+          else
+            adjacent_regions_joined.sort!{|r1, r2| r2.last <=> r1.last}
+          end
+          patient_original_phenotypes = phenotypes_by_patient[patient_number]
+          calculate_hpo_recovery_and_filter(adjacent_regions_joined, patient_original_phenotypes, predicted_hpo_percentage, options[:hpo_recovery], patient_number)
+          if adjacent_regions_joined.empty?
+            puts "ProfID:#{patient_number}\tResults not found"
+          else
+            adjacent_regions_joined = adjacent_regions_joined.shift(options[:max_number]) if !options[:max_number].nil?
+            adjacent_regions_joined.each do |chr, start, stop, hpo_list, association_values, score|
+              puts "ProfID:#{patient_number}\t#{chr}\t#{start}\t#{stop}\t#{hpo_list.join(',')}\t#{association_values.join(',')}\t#{score}"
+            end
+          end
+        end
+      end #elsif
+
+      pathway_stats = {}
+      if options[:retrieve_kegg_data]
+        genes_found = []
+        genes_found_attributes = {}
+        adjacent_regions_joined.each do |adjacent_region|
+          ref_chr, ref_start, ref_stop = adjacent_region
+          chr_genes = gene_location[ref_chr]
+          genes = []
+          chr_genes.each do |gene_name, gene_start, gene_stop|
+                genes << gene_name if coor_overlap?(ref_start, ref_stop, gene_start, gene_stop)
+          end
+          genes_found << genes
+        end
+
+        genes_with_kegg_data = []
+        genes_found.each do |genes|
+          genes_cluster = []
+          genes.each do |gene|
+            query = genes_with_kegg[gene]
+            genes_cluster << [gene, query]
+          end
+          genes_with_kegg_data << genes_cluster
+        end
+        pathway_stats = compute_pathway_enrichment(genes_with_kegg_data, genes_with_kegg)
+        pathway_stats.sort!{|p1, p2| p1.last <=> p2.last}
       end
-      genes_found << genes
-    end
 
-    genes_with_kegg_data = []
-    genes_found.each do |genes|
-      genes_cluster = []
-      genes.each do |gene|
-        query = genes_with_kegg[gene]
-        genes_cluster << [gene, query]
-      end
-      genes_with_kegg_data << genes_cluster
-    end
-    pathway_stats = compute_pathway_enrichment(genes_with_kegg_data, genes_with_kegg)
-    pathway_stats.sort!{|p1, p2| p1.last <=> p2.last}
-  end
+      #Creating html report
+      #-------------------
 
-  #Creating html report
-  #-------------------
-  ####PLEASE CHECK THIS METHOD!
-
-  report_data(characterised_hpos, adjacent_regions_joined, options[:html_file], hpo, genes_with_kegg_data, pathway_stats) if options[:html_reporting]
+      report_data(
+        characterised_hpos, 
+        adjacent_regions_joined, 
+        File.join(output_folder, options[:html_file]), 
+        hpo, 
+        genes_with_kegg_data, 
+        pathway_stats
+      ) if options[:html_reporting]
 end # end each_with_index
 
 if options[:write_hpo_recovery_file]
-  handler = File.open('output_profile_recovery', 'w')
-  predicted_hpo_percentage.each do |patient, percentage|  
-    percentage.each do |perc|
-      handler.puts "ProfID:#{patient}\t#{perc.inspect}"
+  File.open(File.join(output_folder, 'output_profile_recovery'), 'w') do |f|
+    predicted_hpo_percentage.each do |patient, percentage|  
+      percentage.each do |perc|
+        f.puts "ProfID:#{patient}\t#{perc.inspect}"
+      end
     end
   end
-  handler.close
 end
