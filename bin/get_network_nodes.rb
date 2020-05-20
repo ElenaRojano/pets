@@ -6,14 +6,13 @@ ROOT_PATH = File.dirname(__FILE__)
 EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
-$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'simnetome', 'lib'))
 
 ##############################
 #LIBRARIES
 ##############################
 require 'generalMethods.rb'
 require 'optparse'
-require 'ontology'
+require 'semtools'
 
 ###############################
 #METHODS

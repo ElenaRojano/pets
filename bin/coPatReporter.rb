@@ -8,14 +8,13 @@ HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
 IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
 CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
-$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'simnetome', 'lib'))
 
 require 'optparse'
 require 'csv'
 require 'generalMethods.rb'
 require 'coPatReporterMethods.rb'
 require 'report_html'
-require 'ontology'
+require 'semtools'
 
 ##########################
 #OPT-PARSER

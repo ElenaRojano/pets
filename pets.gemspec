@@ -41,6 +41,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_dependency "statistics2"
   spec.add_dependency "terminal-table"
+  spec.add_dependency "semtools", "~> 0.1.0" 
   spec.add_dependency "report_html" # ask about this gem
 
 end
