@@ -117,7 +117,7 @@ OptionParser.new do |opts|
 
   options[:cluster_file] = 'cluster_coords.txt'
   opts.on("-c", "--cluster_file PATH", "Cluster coords output file that will be used to translate SOR nodes") do |value|
-    options[:cluster_file] = value
+    options[:cluster_file] = File.basename(value)
   end 
 
   options[:excluded_hpo] = nil
@@ -152,7 +152,7 @@ OptionParser.new do |opts|
 
   options[:hpo_stat_file] = 'hpo_stats.txt'
   opts.on("-s", "--hpo_stat_file PATH", "Output file with HPO codes, their frequency and CI") do |value|
-    options[:hpo_stat_file] = value
+    options[:hpo_stat_file] = File.basename(value)
   end 
 
   options[:thresold] = 0
@@ -170,6 +170,9 @@ end.parse!
 ###############################
 #MAIN
 ###############################
+output_folder = File.dirname(File.expand_path(options[:output_file]))
+Dir.mkdir(output_folder) if !File.exists?(output_folder)
+
 hpo_file = options[:hpo_file]
 hpo_file = ENV['hpo_file'] if hpo_file.nil?
 hpo_file = HPO_FILE if hpo_file.nil?
@@ -183,9 +186,8 @@ hpo_stats, patient_hpo_ic = compute_hpo_stats(hpo_count, patients2hpo.length)
 patients_by_cluster, sors = generate_cluster_regions(chr_patients_genomic_region, options[:mutation_type])
 tripartite_network = build_tripartite_network(patients2hpo, hpo_stats, options[:thresold], patients_by_cluster)
 
-write_array(not_found - hpo.excluded_codes, 'missing_hpo_names')
-write_array(sors, options[:cluster_file])
-write_hash(hpo_stats.select{|hp_code, stats| stats.last > options[:thresold]}, options[:hpo_stat_file], %w[HPOcode Frequency IC])
+write_array(not_found - hpo.excluded_codes, File.join(output_folder, 'missing_hpo_names'))
+write_array(sors, File.join(output_folder, options[:cluster_file]))
+write_hash(hpo_stats.select{|hp_code, stats| stats.last > options[:thresold]}, File.join(output_folder, options[:hpo_stat_file]), %w[HPOcode Frequency IC])
 write_array(tripartite_network, options[:output_file])
-write_array(patient_hpo_ic, 'filtered_hpo.txt')
-
+write_array(patient_hpo_ic, File.join(output_folder, 'filtered_hpo.txt'))
