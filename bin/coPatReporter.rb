@@ -131,7 +131,8 @@ detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profil
 temp_folder = File.join(output_folder, 'temp')
 matrix_file = File.join(temp_folder, 'pat_hpo_matrix.txt')
 hpo_ic_file = File.join(temp_folder, 'hpo_ic.txt')
-hpo_profile_ic_file = File.join(temp_folder, 'hpo_ic.txt')
+hpo_profile_ic_file = File.join(temp_folder, 'hpo_ic_profile.txt')
+parents_per_term_file = File.join(temp_folder, 'parents_per_term.txt')
 clustered_patients_file = File.join(temp_folder, 'cluster_asignation')
 cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
 cluster_chromosome_data_file = File.join(temp_folder, 'cluster_chromosome_data.txt')
@@ -150,6 +151,8 @@ hpo.load_data(hpo_file)
 patient_data = load_patient_cohort(options)
 cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
 hpo.load_profiles(get_uniq_hpo_profiles(patient_data))
+
+profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
@@ -214,10 +217,12 @@ end
 # Write files for report
 #----------------------------------
 write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
-write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file)
-write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file)
+write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 'FreqIC')
+write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file, 'OntoIC', 'FreqIC')
+write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
 
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")

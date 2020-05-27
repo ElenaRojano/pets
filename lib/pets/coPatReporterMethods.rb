@@ -264,11 +264,11 @@ def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_eva
   end
 end
 
-def write_arrays4scatterplot(onto_ic, freq_ic, hpo_ic_file)
-  File.open(hpo_ic_file, 'w') do |f|
-    f.puts "OntoIC\tFreqIC"
-    onto_ic.each_with_index do |value,i|
-        f.puts [value, freq_ic[i]].join("\t")
+def write_arrays4scatterplot(x_axis_value, y_axis_value, filename, x_axis_name, y_axis_name)
+  File.open(filename, 'w') do |f|
+    f.puts "#{x_axis_name}\t#{y_axis_name}"
+    x_axis_value.each_with_index do |value,i|
+        f.puts [value, y_axis_value[i]].join("\t")
     end
   end
 end
@@ -349,4 +349,13 @@ def calculate_coverage(regions_data, delete_thresold = 0)
 		end
 	end
 	return raw_coverage, n_regions, nt, patients.fdiv(n_regions)
+end
+
+def get_profile_redundancy(hpo)
+  #TODO: sort both arrays consequently
+  #TODO: bear in mind join both arrays with zip and sort by one, to get an [a[a]]
+  profile_sizes = hpo.get_profile_sizes
+  parental_hpos_per_profile = hpo.compute_redundant_parental_terms_per_profile
+  profile_sizes, parental_hpos_per_profile = profile_sizes.zip(parental_hpos_per_profile).sort_by{|i| i.first}.reverse.transpose
+  return profile_sizes, parental_hpos_per_profile
 end
