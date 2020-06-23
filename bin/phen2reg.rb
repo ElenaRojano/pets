@@ -173,7 +173,6 @@ else # if you want to add phenotypes through the terminal
     options[:prediction_data] = options[:prediction_data].split('!').map{|profile| profile.split('|')}
   end
 end
-
 #- Loading data
 #------------------------------
 hpo = Ontology.new
@@ -231,11 +230,11 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
           save_patient_matrix(mat_output, patient_hpo_profile, regionAttributes, hpo_region_matrix)
         end
 
+        adjacent_regions_joined = []
         scoring_regions(regionAttributes, hpo_region_matrix, options[:ranking_style], options[:pvalue_cutoff], options[:freedom_degree], null_value)
         if regionAttributes.empty?
           puts "ProfID:#{patient_number}\tResults not found"
         else    
-          adjacent_regions_joined = []
           regionAttributes.each do |regionID, attributes|
             chr, start, stop, patient_ID, region_length, score = attributes
             association_values = association_scores[regionID]
