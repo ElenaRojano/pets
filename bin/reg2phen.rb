@@ -17,7 +17,8 @@ require 'semtools'
 def predict_patient(predictions, training_set, threshold, transform, genes, genes_dictionary)
   results = {}
   predictions.each do |info|
-    info = genes_dictionary[info.shift] if genes
+    geneID = info.shift
+    info = genes_dictionary[geneID] if genes
     chr, pt_start, pt_stop = info
     query = training_set[chr]
     next if query.nil?
@@ -27,6 +28,7 @@ def predict_patient(predictions, training_set, threshold, transform, genes, gene
         association_score = 10**(-association_score) if transform
         record2save = [chr, pt_start, pt_stop, hpo_code, association_score, hpo_start, hpo_stop]
         key = info.join(":")
+        key.concat(" (#{geneID})") if genes
         save = results[key]
         if save.nil?
             results[key] = [record2save]
