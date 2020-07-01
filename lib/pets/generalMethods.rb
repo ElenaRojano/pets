@@ -141,13 +141,14 @@ def load_gene_data(gene_data_path)
 				key, value = pair.split('=')
 				attributes[key] = value
 			end
-			geneNames = []
-			geneNames << attributes['gene'] if !attributes['gene'].nil?
-			geneNames.concat(attributes['gene_synonym'].split(',')) if !attributes['gene_synonym'].nil?
+			geneName = nil
+			geneName = attributes['gene'] if !attributes['gene'].nil?
+			geneSyns = []
+			geneSyns = attributes['gene_synonym'].split(',') if !attributes['gene_synonym'].nil?
 			description = attributes['description']
 			description = URI.unescape(description) if !description.nil?
 			attributes['Dbxref'] =~ /GeneID:(\d+)/
-			gene_list[$1] = [geneNames, description]
+			gene_list[$1] = [geneName, geneSyns, description]
 			genes << [$1, fields[3].to_i, fields[4].to_i]
 		end
 	end
@@ -243,14 +244,11 @@ end
 
 def merge_genes_with_kegg_data(gene_list, kegg_data)
 	merged_data = {}
-	gene_list.each do |geneID, attributes|
-		query = kegg_data[geneID]
-		if query.nil?
-			attributes << []
-		else
-			attributes << query
-		end
-		merged_data[geneID] = attributes
+	gene_list.each do |geneID, values|
+		geneName, geneSyn, description = values
+		kegg_entry = kegg_data[geneID]	
+		kegg_entry = [] if kegg_entry.nil?
+		merged_data[geneID] = [geneName, description, kegg_entry, geneSyn]
 	end
 	return merged_data
 end
@@ -275,7 +273,7 @@ def compute_pathway_enrichment(genes_clusters, genes_with_kegg)
 	genes_in_predictions = []
 	genes_clusters.each do |cluster|
 		cluster.each do |geneID, data|
-			geneNames, description, pathways = data
+			geneName, description, pathways, geneSyns = data
 			pathways.each do |pathway|
 				query = pathways_genes_in_predictions[pathway]
 				if query.nil?
