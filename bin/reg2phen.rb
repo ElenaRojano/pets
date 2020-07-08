@@ -10,89 +10,7 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 require 'optparse'
 require 'generalMethods.rb'
 require 'semtools'
-
-##########################
-#METHODS
-##########################
-def predict_patient(predictions, training_set, threshold, transform, genes, genes_dictionary)
-  results = {}
-  predictions.each do |info|
-    if genes
-      geneID = info.shift
-      info = genes_dictionary[geneID]
-    end 
-    chr, pt_start, pt_stop, is_GeneSynom = info
-    sors = training_set[chr]
-    next if sors.nil?
-    sors.each do |sor_start, sor_stop, nodeID, hpo_code, association_score|
-      next if !coor_overlap?(pt_start, pt_stop, sor_start, sor_stop) 
-      patientsNum = nodeID.split('.').last
-      if association_score >= threshold 
-        association_score = 10**(-association_score) if transform
-        genes_in_sor = get_genes_by_coordinates(genes_dictionary, chr, sor_start, sor_stop)
-        record2save = [chr, pt_start, pt_stop, hpo_code, association_score, sor_start, sor_stop, patientsNum, genes_in_sor.join(',')]
-        key = info[0...3].join(":")
-        key.concat(" (#{geneID})") if genes
-        query_res = results[key]
-        if query_res.nil?
-            results[key] = [record2save]
-        else
-            query_res << record2save
-        end
-      end
-    end
-  end
-  return results
-end
-
-def get_genes_by_coordinates(genes_dictionary, chr, start, stop)
-  genes_in_sor = genes_dictionary.select do |gene_sym, attributes|
-    gene_chr, gene_start, gene_stop, is_GeneSynom = attributes
-    if gene_chr == chr && !is_GeneSynom
-      coor_overlap?(gene_start, gene_stop, start, stop)
-    else
-      false
-    end
-  end
-  return genes_in_sor.keys
-end
-
-def translate_hpos_in_results(results, hpo)
-  results.each do |coords, data|
-    data.each do |info|
-      hpo_name, rejected = hpo.translate_codes2names([info[3]])
-      info[3] = hpo_name.first
-    end
-  end
-end
-
-def generate_gene_locations(gene_location)
-  gene_locations = {}
-  gene_location.each do |chr, genesInfo|
-    genesInfo.each do |geneID, geneStart, geneStop|
-      gene_locations[geneID] = [chr, geneStart, geneStop]
-    end
-  end
-  return gene_locations
-end
-
-def generate_genes_dictionary(gene_location, genes_with_kegg)
-  reestructured_gene_locations = generate_gene_locations(gene_location)
-  genes_dictionary = {}
-  genes_with_kegg.each do |geneID, annotInfo|
-    #STDERR.puts annotInfo.shift.inspect
-    gene_location_data = reestructured_gene_locations[geneID]
-    unless gene_location_data.nil?
-      geneName, description, pathways, geneSyns = annotInfo
-      genes_dictionary[geneName] = gene_location_data.dup.concat([false])
-      geneSyns.each do |gene_symbol|
-        genes_dictionary[gene_symbol] = gene_location_data.dup.concat([true])
-      end
-    end
-  end
-  return genes_dictionary
-end
-
+require 'reg2phen_methods'
 
 ##########################
 #OPT-PARSER
@@ -112,6 +30,11 @@ OptionParser.new do |opts|
     options[:patbyclust_file] = data
   end
 
+  options[:html_file] = 'reg2phen_results.html'
+  opts.on("-F", "--html_file PATH", "Output HTML file") do |data|
+    options[:html_file] = data
+  end
+  
   options[:association_limit] = 0
   opts.on("-l", "--association_limit FLOAT", "Threshold for association values") do |association_limit|
     options[:association_limit] = association_limit.to_f
@@ -122,16 +45,21 @@ OptionParser.new do |opts|
   options[:input_genes] = true
   end
 
+  options[:html_reporting] = false
+    opts.on("-H", "--html_reporting", "Set for HTML report") do
+  options[:html_reporting] = true
+  end
+
   options[:output_path] = "output.txt"
   opts.on("-o", '--output_path PATH', 'Output path for overlapping patient file') do |output_path|
     options[:output_path] = output_path
   end
 
-  options[:output_file] = nil
+  options[:output_file] = 'reg2phen_predictions.txt'
   opts.on("-O", "--output_file PATH", "Output file with patient data") do |data|
     options[:output_file] = data
   end
-
+  
   options[:prediction_file] = nil
   #chr\tstart\tstop
   opts.on("-p", "--prediction_file PATH", "Input file with regions to predict") do |input_path|
@@ -176,11 +104,8 @@ all_paths[:gene_location] = File.join(all_paths[:external_data], 'gene_location.
 ##########################
 #MAIN
 ##########################
-# output_folder = File.dirname(options[:output_file])
+output_folder = File.dirname(options[:output_file])
 # #detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profile_evaluation.csv')
-
-# temp_folder = File.join(output_folder, 'temp')
-# hpos_associated_with_genotype = File.join(temp_folder, 'phenotype_to_genotype_associations.txt')
 
 gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
 hpo = Ontology.new
@@ -237,20 +162,9 @@ end
 ######################
 # .ERB TEMPLATE (HTML) DEVELOPING
 ######################
-
-# container = {
-#   :temp_folder => temp_folder,
-#   # :top_cluster_phenotypes => top_cluster_phenotypes.length,
-#   :summary_stats => summary_stats,
-#   :hpo_stats => hpo_stats,
-#   :all_cnvs_length => all_cnvs_length,
-#   :all_sor_length => all_sor_length,
-#   :new_cluster_phenotypes => new_cluster_phenotypes.keys.length,
-#   :ontology_levels => ontology_levels,
-#   :distribution_percentage => distribution_percentage,
-#  }
-
-# template = File.open(File.join(REPORT_FOLDER, 'cohort_report.erb')).read
-# report = Report_html.new(container, 'Cohort quality report')
-# report.build(template)
-# report.write(options[:output_file]+'.html')
+translate_hpos_in_results(results, hpo)
+patient_results_table = parse_patient_results(results)
+container = {
+  :table1 => patient_results_table
+}
+report_data(container, options[:html_file]) if options[:html_reporting]

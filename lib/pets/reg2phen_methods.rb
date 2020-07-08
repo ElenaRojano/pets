@@ -1,3 +1,5 @@
+require 'report_html'
+
 def predict_patient(predictions, training_set, threshold, transform, genes, genes_dictionary)
   results = {}
   predictions.each do |info|
@@ -75,4 +77,21 @@ def generate_genes_dictionary(gene_location, genes_with_kegg)
     end
   end
   return genes_dictionary
+end
+
+def parse_patient_results(results)
+  patient_results = []
+  results.each do |k, val|
+    val.each do |v|
+      patient_results << v.unshift(k)
+    end
+  end
+  return patient_results
+end
+
+def report_data(container, html_file)
+  template = File.open(File.join(REPORT_FOLDER, 'reg2phen_report.erb')).read
+  report = Report_html.new(container, 'Patient summary')
+  report.build(template)
+  report.write(html_file)
 end

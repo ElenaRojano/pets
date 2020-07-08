@@ -184,6 +184,7 @@ patients2hpo, hpo_count, not_found, chr_patients_genomic_region = loadPatientFil
 
 hpo_stats, patient_hpo_ic = compute_hpo_stats(hpo_count, patients2hpo.length)
 patients_by_cluster, sors = generate_cluster_regions(chr_patients_genomic_region, options[:mutation_type])
+
 tripartite_network = build_tripartite_network(patients2hpo, hpo_stats, options[:thresold], patients_by_cluster)
 
 write_array(not_found - hpo.excluded_codes, File.join(output_folder, 'missing_hpo_names'))
