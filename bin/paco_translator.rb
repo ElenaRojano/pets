@@ -18,9 +18,11 @@ def translate_hpo(patient_data, hpo, translate)
 	patient_data.each do |patientID, patient_record|
 		hpos, chr, start, stop = patient_record
     if translate == 'names'
-      hpos, rejected = hpo.translate_codes2names(hpos)
+      # hpos, rejected = hpo.translate_codes2names(hpos)
+      hpos, rejected = hpo.translate_ids(hpos)
     elsif translate =='codes'
-      hpos, rejected = hpo.translate_names2codes(hpos)
+      # hpos, rejected = hpo.translate_names2codes(hpos)
+      hpos, rejected = hpo.translate_names(hpos)
       STDERR.puts(" The ontology names '#{rejected.join(',')}' were not found") if !rejected.empty?
     end
     patient_record[0] = hpos
@@ -104,8 +106,9 @@ hpo_file = HPO_FILE if hpo_file.nil?
 
 patient_data = load_patient_cohort(options)
 if !options[:translate].nil?
-  hpo = Ontology.new
-  hpo.load_data(hpo_file)
+  # hpo = Ontology.new
+  # hpo.load_data(hpo_file)
+  hpo = OBO_Handler.new(file: hpo_file, load_file: true)
   translate_hpo(patient_data, hpo, options[:translate])
 end
 save_translated_file(patient_data, options[:output_file])
