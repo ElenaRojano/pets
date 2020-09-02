@@ -29,10 +29,11 @@ def loadPatientFile(patient_file, hpo, add_parents)
 		patient, chr, start, stop, phenotype_profile = line.split("\t", 5)
 		next if phenotype_profile.nil? #For skipping patients without phenotypes
 		phenotypes = phenotype_profile.split('|')
-		phenotypes, rejected = hpo.translate_names2codes(phenotypes)
+		# phenotypes, rejected = hpo.translate_names2codes(phenotypes)
+		phenotypes, rejected = hpo.translate_names(phenotypes)
 		not_found = not_found | rejected
 		phenotypes.each do |hpo_code|
-			get_all_hpos(patient, hpo_code, patient2phenotype, hpo, hpo_count, add_parents)
+			get_all_hpos(patient, hpo_code, patient2phenotype, hpo, hpo_count, add_parents) if !hpo.is_removable(hpo_code)
 		end
 		info = [patient, start.to_i, stop.to_i]
 		add_record(patients_genomic_region_by_chr, chr, info)
@@ -45,7 +46,8 @@ def get_all_hpos(patient, hpo_code, patient2phenotype, hpo, hpo_count, add_paren
 	add_record(hpo_count, hpo_code, patient)
 	add_record(patient2phenotype, patient, hpo_code)
 	if add_parents == 'root'
-		hpo_parent_codes = hpo.get_parents(hpo_code)
+		# hpo_parent_codes = hpo.get_parents(hpo_code)
+		hpo_parent_codes = hpo.get_ancestors(hpo_code)
     	hpo_parent_codes.each do |parent_code|
 			add_record(hpo_count, parent_code, patient)
 			add_record(patient2phenotype, patient, parent_code)
@@ -105,6 +107,14 @@ def write_array(array, file_path)
 			handler.puts line  
 		end
 	end
+end
+
+def read_excluded_hpo_file(file)
+	excluded_hpo = []
+	File.open(file).each do |line|
+		excluded_hpo << line.chomp
+	end
+	return excluded_hpo
 end
 
 ##############################
@@ -177,9 +187,14 @@ hpo_file = options[:hpo_file]
 hpo_file = ENV['hpo_file'] if hpo_file.nil?
 hpo_file = HPO_FILE if hpo_file.nil?
 
-hpo = Ontology.new
-hpo.load_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
-hpo.load_data(hpo_file)
+# hpo = Ontology.new
+# hpo.load_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
+# hpo.load_data(hpo_file)
+if !options[:excluded_hpo].nil?
+	hpo = OBO_Handler.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(options[:excluded_hpo]))
+else
+	hpo = OBO_Handler.new(file: hpo_file, load_file: true)
+end
 patients2hpo, hpo_count, not_found, chr_patients_genomic_region = loadPatientFile(options[:patient_file], hpo, options[:add_parents])
 
 hpo_stats, patient_hpo_ic = compute_hpo_stats(hpo_count, patients2hpo.length)
@@ -187,7 +202,8 @@ patients_by_cluster, sors = generate_cluster_regions(chr_patients_genomic_region
 
 tripartite_network = build_tripartite_network(patients2hpo, hpo_stats, options[:thresold], patients_by_cluster)
 
-write_array(not_found - hpo.excluded_codes, File.join(output_folder, 'missing_hpo_names'))
+# write_array(not_found - hpo.excluded_codes, File.join(output_folder, 'missing_hpo_names'))
+write_array(not_found - hpo.removable_terms, File.join(output_folder, 'missing_hpo_names'))
 write_array(sors, File.join(output_folder, options[:cluster_file]))
 write_hash(hpo_stats.select{|hp_code, stats| stats.last > options[:thresold]}, File.join(output_folder, options[:hpo_stat_file]), %w[HPOcode Frequency IC])
 write_array(tripartite_network, options[:output_file])
