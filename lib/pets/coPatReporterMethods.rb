@@ -13,20 +13,23 @@ def format_patient_data(patient_data, options, hpo)
     hpos, chr, start, stop = patient_record
 
     if options[:hpo_names]
-      hpos, pat_rejected_hpos = hpo.translate_names2codes(hpos)
+      # hpos, pat_rejected_hpos = hpo.translate_names2codes(hpos)
+      hpos, pat_rejected_hpos = hpo.translate_names(hpos)
       if !pat_rejected_hpos.empty?
         STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo NAMES '#{pat_rejected_hpos.join(',')}'. Rejected."
         rejected_hpos.concat(pat_rejected_hpos)
       end
     end
 
-    hpos, pat_rejected_hpos = hpo.check_codes(hpos)
+    # hpos, pat_rejected_hpos = hpo.check_codes(hpos)
+    hpos, pat_rejected_hpos = hpo.check_ids(hpos)
     if !pat_rejected_hpos.empty?
       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODES '#{pat_rejected_hpos.join(',')}'. Rejected."
       rejected_hpos.concat(pat_rejected_hpos)
     end
     total_terms += hpos.length
-    more_specific_childs = hpo.get_more_specific_childs_table(hpos)
+    # more_specific_childs = hpo.get_more_specific_childs_table(hpos)
+    more_specific_childs = hpo.get_childs_table(hpos, true)
     terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
     suggested_childs[pat_id] = more_specific_childs  
     all_hpo.concat(hpos)
@@ -87,7 +90,8 @@ def process_clustered_patients(options, clustered_patients, patient_data, hpo, o
         phenotypes = patient[HPOS]
         profile_ics << get_profile_ic(phenotypes, phenotype_ic)
         if processed_clusters < options[:clusters2show_detailed_phen_data]
-          phen_names, rejected_codes = hpo.translate_codes2names(phenotypes) #optional
+          # phen_names, rejected_codes = hpo.translate_codes2names(phenotypes) #optional
+          phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
           all_phens << phen_names
         end
       end
@@ -186,7 +190,8 @@ def get_summary_stats(patient_data, cohort_hpos, hpo)
   stats = []
   stats << ['Unique HPOs', cohort_hpos.length]
   stats << ['Number of patients in the cohort', get_patient_ids(patient_data).length]
-  stats << ['HPOs per patient (average)', hpo.get_profile_mean_length]
+  # stats << ['HPOs per patient (average)', hpo.get_profile_mean_length]
+  stats << ['HPOs per patient (average)', hpo.get_profiles_mean_size]
   stats << ['HPOs for patient in percentile 90', hpo.get_profile_length_at_percentile(perc=90)]
   return stats
 end
@@ -202,7 +207,8 @@ end
 def get_profile_ontology_distribution_tables(hpo)
   cohort_ontology_levels = hpo.get_ontology_levels_from_profiles(uniq=false)
   uniq_cohort_ontology_levels = hpo.get_ontology_levels_from_profiles
-  hpo_ontology_levels = hpo.term_level
+  # hpo_ontology_levels = hpo.term_level
+  hpo_ontology_levels = hpo.get_ontology_levels
   total_ontology_terms = hpo_ontology_levels.values.flatten.length
   total_cohort_terms = cohort_ontology_levels.values.flatten.length
   total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
@@ -354,8 +360,11 @@ end
 def get_profile_redundancy(hpo)
   #TODO: sort both arrays consequently
   #TODO: bear in mind join both arrays with zip and sort by one, to get an [a[a]]
-  profile_sizes = hpo.get_profile_sizes
-  parental_hpos_per_profile = hpo.compute_redundant_parental_terms_per_profile
+  # profile_sizes = hpo.get_profile_sizes
+  profile_sizes = hpo.get_profiles_sizes
+  # parental_hpos_per_profile = hpo.compute_redundant_parental_terms_per_profile
+  parental_hpos_per_profile = hpo.parentals_per_profile# clean_profiles
+  parental_hpos_per_profile = parental_hpos_per_profile.map{|item| item[0]}
   profile_sizes, parental_hpos_per_profile = profile_sizes.zip(parental_hpos_per_profile).sort_by{|i| i.first}.reverse.transpose
   return profile_sizes, parental_hpos_per_profile
 end
