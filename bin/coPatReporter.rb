@@ -16,6 +16,20 @@ require 'coPatReporterMethods.rb'
 require 'report_html'
 require 'semtools'
 
+
+
+##########################
+# FUNCTIONS
+##########################
+def read_excluded_hpo_file(file)
+  excluded_hpo = []
+  File.open(file).each do |line|
+    excluded_hpo << line
+  end
+  return excluded_hpo
+end
+
+
 ##########################
 #OPT-PARSER
 ##########################
@@ -151,7 +165,7 @@ hpo_file = HPO_FILE if hpo_file.nil?
 # hpo.load_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
 # hpo.load_data(hpo_file)
 if !options[:excluded_hpo].nil?
-  hpo = OBO_Handler.new(file: hpo_file, load_file: true, removable_terms: options[:excluded_hpo])
+  hpo = OBO_Handler.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(options[:excluded_hpo]))
 else
   hpo = OBO_Handler.new(file: hpo_file, load_file: true)
 end
