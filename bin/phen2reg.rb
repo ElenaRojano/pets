@@ -175,8 +175,9 @@ else # if you want to add phenotypes through the terminal
 end
 #- Loading data
 #------------------------------
-hpo = Ontology.new
-hpo.load_data(options[:hpo_file])
+# hpo = Ontology.new
+# hpo.load_data(options[:hpo_file])
+hpo = OBO_Handler.new(file: options[:hpo_file], load_file: true)
 trainingData = load_training_file4HPO(options[:training_file], options[:best_thresold])
 hpos_ci_values = load_hpo_ci_values(options[:information_coefficient]) if options[:quality_control]
 
@@ -192,7 +193,8 @@ phenotypes_by_patient = {}
 predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
       if options[:hpo_is_name]
-        patient_hpo_profile, rejected = hpo.translate_names2codes(hpos)
+        # patient_hpo_profile, rejected = hpo.translate_names2codes(hpos)
+        patient_hpo_profile, rejected = hpo.translate_names(hpos)
         STDERR.puts "Phenotypes #{rejected.join(",")} in patient #{patient_number} not exist"
       end
 

@@ -233,7 +233,8 @@ def hpo_quality_control(prediction_data, hpos_ci_values, hpo)
 	##prediction_data = [hpo1, hpo2, hpo3...]
 	# hpos_ci_values = load_hpo_ci_values(information_coefficient_file)
 	prediction_data.each do |hpo_code|
-		names, rejected = hpo.translate_codes2names([hpo_code])
+		# names, rejected = hpo.translate_codes2names([hpo_code])
+		names, rejected = hpo.translate_ids([hpo_code])
 		tmp = [names.first, hpo_code] # col hpo name, col hpo code
 		ci = hpos_ci_values[hpo_code]
 		unless ci.nil? # col exists? and ci values
@@ -241,15 +242,17 @@ def hpo_quality_control(prediction_data, hpos_ci_values, hpo)
 		else
 			tmp.concat(["no", "-"])
 		end
-		parent = prediction_data & hpo.get_parents(hpo_code)
+		# parent = prediction_data & hpo.get_parents(hpo_code)
+		parent = prediction_data & hpo.get_ancestors(hpo_code, true)
 		if parent.empty?
 			parent << "-"
 		else
-			n, r = hpo.translate_codes2names(parent)
+			# n, r = hpo.translate_codes2names(parent)
+			n, r = hpo.translate_ids(parent)
 			parent = parent.zip(n) # Combine code ids with hpo names
 		end
 		tmp << parent # col parents
-		specific_childs = hpo.get_more_specific_childs_table([hpo_code])
+		specific_childs = hpo.get_childs_table([hpo_code], true)
 		tmp << specific_childs.first.last
 		characterised_hpos << tmp
 	end
