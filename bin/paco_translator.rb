@@ -108,7 +108,7 @@ patient_data = load_patient_cohort(options)
 if !options[:translate].nil?
   # hpo = Ontology.new
   # hpo.load_data(hpo_file)
-  hpo = OBO_Handler.new(file: hpo_file, load_file: true)
+  hpo = Ontology.new(file: hpo_file, load_file: true)
   translate_hpo(patient_data, hpo, options[:translate])
 end
 save_translated_file(patient_data, options[:output_file])

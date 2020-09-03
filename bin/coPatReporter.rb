@@ -165,9 +165,9 @@ hpo_file = HPO_FILE if hpo_file.nil?
 # hpo.load_black_list(options[:excluded_hpo]) if !options[:excluded_hpo].nil?
 # hpo.load_data(hpo_file)
 if !options[:excluded_hpo].nil?
-  hpo = OBO_Handler.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(options[:excluded_hpo]))
+  hpo = Ontology.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(options[:excluded_hpo]))
 else
-  hpo = OBO_Handler.new(file: hpo_file, load_file: true)
+  hpo = Ontology.new(file: hpo_file, load_file: true)
 end
 
 patient_data = load_patient_cohort(options)

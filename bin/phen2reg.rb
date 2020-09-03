@@ -177,7 +177,7 @@ end
 #------------------------------
 # hpo = Ontology.new
 # hpo.load_data(options[:hpo_file])
-hpo = OBO_Handler.new(file: options[:hpo_file], load_file: true)
+hpo = Ontology.new(file: options[:hpo_file], load_file: true)
 trainingData = load_training_file4HPO(options[:training_file], options[:best_thresold])
 hpos_ci_values = load_hpo_ci_values(options[:information_coefficient]) if options[:quality_control]
 

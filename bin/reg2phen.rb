@@ -110,7 +110,7 @@ output_folder = File.dirname(options[:output_file])
 gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
 # hpo = Ontology.new
 # hpo.load_data(options[:hpo_file])
-hpo = OBO_Handler.new(file: options[:hpo_file], load_file: true)
+hpo = Ontology.new(file: options[:hpo_file], load_file: true)
 
 training_set = load_training_file4regions(options[:training_file])
 
