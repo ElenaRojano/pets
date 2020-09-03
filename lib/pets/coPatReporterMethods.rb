@@ -22,7 +22,7 @@ def format_patient_data(patient_data, options, hpo)
     end
 
     # hpos, pat_rejected_hpos = hpo.check_codes(hpos)
-    hpos, pat_rejected_hpos = hpo.check_ids(hpos)
+    hpos, pat_rejected_hpos = hpo.check_ids(hpos.map{|a| a.to_sym})
     if !pat_rejected_hpos.empty?
       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODES '#{pat_rejected_hpos.join(',')}'. Rejected."
       rejected_hpos.concat(pat_rejected_hpos)

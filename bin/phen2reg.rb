@@ -193,8 +193,8 @@ phenotypes_by_patient = {}
 predicted_hpo_percentage = {}
 options[:prediction_data].each_with_index do |patient_hpo_profile, patient_number|
       if options[:hpo_is_name]
-        # patient_hpo_profile, rejected = hpo.translate_names2codes(hpos)
-        patient_hpo_profile, rejected = hpo.translate_names(hpos)
+        # patient_hpo_profile, rejected = hpo.translate_names2codes(patient_hpo_profile)
+        patient_hpo_profile, rejected = hpo.translate_names(patient_hpo_profile)
         STDERR.puts "Phenotypes #{rejected.join(",")} in patient #{patient_number} not exist"
       end
 
