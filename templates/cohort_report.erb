@@ -7,8 +7,8 @@
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Summary stats</h1>
 	<p> General stats about the patient cohort</p>
-	<%= table(id: :summary_stats, header: true, border: 2, 
-		cell_align: %w(left center )) do |data|
+	<%= table(id: :summary_stats, header: true, styled: 'bs', 
+		cell_align: %w(left center ), attrib: {'class' => 'table table-striped'}) do |data|
 		data.unshift(['Stat', 'Value'])
 		end
 	%>
@@ -17,8 +17,8 @@
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">HPO stats</h1>
 	<p> HPOs more frequent in the cohort </p>
-	<%= table(id: :hpo_stats, header: true, border: 2, 
-		cell_align: %w(left center )) do |data|
+	<%= table(id: :hpo_stats, header: true, styled: 'dt', 
+		cell_align: %w(left center ), attrib: {'class' => 'table table-striped'}) do |data|
 			data.unshift(['HPO', ' Patient percentage'])
 		end
 	%>

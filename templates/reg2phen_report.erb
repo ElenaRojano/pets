@@ -1,5 +1,43 @@
-<p>Introduccion</p>
-<%=
-	table(id: :table1, header: true, styled: 'dt', attrib: {'class' => 'display'})
-	
+<%
+	hpo = @hash_vars[:hpo]
+	def get_hpo_link(hpo_code)
+		link = '-'
+		if hpo_code != '-'
+			link = "<a href=\"https://hpo.jax.org/app/browse/term/#{hpo_code}\">#{hpo_code}</a>"
+		end
+		return link
+	end
+
+	def get_gene_link(gene_code)
+		link = '-'
+		if gene_code != '-'
+			link = "<a href=\"https://www.genenames.org/tools/search/#!/genes?query=#{gene_code}\">#{gene_code}</a>"
+		end
+		return link
+	end
+
 %>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">Input HPO quality control</h1>
+	<p>Introduccion</p>
+	<%=
+	table(id: :table1, header: true, styled: 'dt', attrib: {'class' => 'table table-striped'}) do |data_array|
+	        header = data_array.shift
+	        data_array.each do |row|
+	            row.each_with_index do |cell, i|
+					if i == 5
+      					hpo_name, rejected = hpo.translate_codes2names([cell])
+						row[i] = "#{hpo_name.first}, #{get_hpo_link(cell)}"
+					elsif i == 6
+						row[i] = cell.round(6)
+					elsif i == 10
+						genes = cell.split(',')
+						row[i] = genes.map{|gene| get_gene_link(gene)}.join(',')
+					end
+				end
+	        end
+	        data_array.unshift(header)
+	end
+	%>
+</div>

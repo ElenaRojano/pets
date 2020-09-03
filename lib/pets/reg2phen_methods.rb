@@ -82,9 +82,16 @@ end
 
 def parse_patient_results(results)
   patient_results = []
+  patient_results << ['Record', 'Region', 'Chromosome', 'Prediction start', 'Prediction stop', 'Phenotype (HPO)', 'P-value', 'SOR start', 'SOR stop', 'Number of patients sharing SOR', 'Genes']
+  counter = 1
   results.each do |k, val|
-    val.each do |v|
-      patient_results << v.unshift(k)
+    val.each_with_index do |v, i|
+      if i == 0
+        patient_results << v.unshift(counter, k)
+      else
+        patient_results << v.unshift(counter, '')
+      end
+      counter += 1 
     end
   end
   return patient_results

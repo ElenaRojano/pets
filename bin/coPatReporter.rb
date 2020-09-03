@@ -199,7 +199,7 @@ summary_stats << ['Percentage of defined HPOs that have more specific childs', (
 
 # Move code 'Percentage of defined HPOs that have more specific childs' outside the next function
 # hpo_stats = hpo.get_term_frequency_from_profiles(names=true)[0..20]
-hpo_stats = hpo.get_profiles_terms_frequency()[0..20]
+hpo_stats = hpo.get_profiles_terms_frequency()
 hpo_stats.map{ |stat| stat[1] = stat[1]*100}
 summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
 

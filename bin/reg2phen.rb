@@ -164,9 +164,10 @@ end
 ######################
 # .ERB TEMPLATE (HTML) DEVELOPING
 ######################
-translate_hpos_in_results(results, hpo)
 patient_results_table = parse_patient_results(results)
+#STDERR.puts patient_results_table.first.inspect
 container = {
-  :table1 => patient_results_table
+  :table1 => patient_results_table,
+  :hpo => hpo
 }
 report_data(container, options[:html_file]) if options[:html_reporting]
