@@ -198,7 +198,8 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
         STDERR.puts "Phenotypes #{rejected.join(",")} in patient #{patient_number} not exist"
       end
 
-      phenotypes_by_patient[patient_number] = patient_hpo_profile
+      patient_hpo_profile, rejected_hpos = hpo.check_ids(patient_hpo_profile.map{|h| h.to_sym})
+      STDERR.puts "WARNING: unknown CODES #{rejected_hpos.join(',')}" if !rejected_hpos.empty?
       
       characterised_hpos = []
       if options[:quality_control]
@@ -208,6 +209,9 @@ options[:prediction_data].each_with_index do |patient_hpo_profile, patient_numbe
           f.puts Terminal::Table.new :headings => header, :rows => characterised_hpos
         end
       end
+      patient_hpo_profile, parental_hpo = hpo.remove_ancestors_from_profile(patient_hpo_profile)
+      patient_hpo_profile.map!{|h| h.to_s} # Convert codes to string to be compatible with search4HPO like methods
+      phenotypes_by_patient[patient_number] = patient_hpo_profile
 
       #Prediction steps
       #---------------------------
