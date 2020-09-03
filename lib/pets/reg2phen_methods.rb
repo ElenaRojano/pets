@@ -46,8 +46,9 @@ end
 def translate_hpos_in_results(results, hpo)
   results.each do |coords, data|
     data.each do |info|
-      hpo_name, rejected = hpo.translate_codes2names([info[3]])
-      info[3] = hpo_name.first
+      # hpo_name, rejected = hpo.translate_codes2names([info[3]])
+      info[3] = hpo.translate_id(info[3])
+      # info[3] = hpo_name.first
     end
   end
 end
