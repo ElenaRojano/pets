@@ -16,7 +16,32 @@ require 'coPatReporterMethods.rb'
 require 'report_html'
 require 'semtools'
 
-
+#Expand class:
+class Ontology
+  def get_profile_similarity(sim_type: :resnick, ic_type: :resnick, bidirectional: true)
+     profiles_similarity = {} #calculate similarity between patients profile
+     #compare para calcular resnik
+     #return array of arrys = [[pacA, pacB, valueSS]]     
+     elements = @profiles.keys
+     #STDERR.puts elements.inspect
+     #Process.exit
+     while !elements.empty?
+      current_element = elements.shift
+      current_profile = @profiles[current_element]
+      elements.each do |element|
+        profile = @profiles[element]
+        value = compare(profile, current_profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
+        query = profiles_similarity[current_element]
+        if query.nil?
+          profiles_similarity[current_element] = {element => value}
+        else
+          query[element] = value
+        end
+      end    
+     end
+     return profiles_similarity
+  end
+end
 
 ##########################
 # FUNCTIONS
@@ -152,6 +177,10 @@ cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
 cluster_chromosome_data_file = File.join(temp_folder, 'cluster_chromosome_data.txt')
 coverage_to_plot_file = File.join(temp_folder, 'coverage_data.txt')
 sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
+similarity_matrix_resnik_file = File.join(temp_folder, 'similarity_matrix_resnik.txt')
+similarity_matrix_lin_file = File.join(temp_folder, 'similarity_matrix_lin.txt')
+similarity_matrix_jiang_file = File.join(temp_folder, 'similarity_matrix_jiang.txt')
+profiles_similarity_resnik_file = File.join(temp_folder, 'profiles_similarity_resnik.txt')
 # cnvs_lenght_to_plot_file = File.join(temp_folder, 'cnvs_lenght.txt')
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
@@ -170,12 +199,23 @@ else
   hpo = Ontology.new(file: hpo_file, load_file: true)
 end
 
+#hash_keys
 patient_data = load_patient_cohort(options)
+
 cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
 hpo.load_profiles(get_uniq_hpo_profiles(patient_data))
 
-profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
+profiles_similarity_resnik = hpo.get_profile_similarity
+profiles_similarity_lin = hpo.get_profile_similarity(sim_type: :lin)
+profiles_similarity_jiang = hpo.get_profile_similarity(sim_type: :jiang_conrath)
 
+resnik_profile_pairs = get_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
+
+similarity_matrix_resnik = format_profiles_similarity_data(profiles_similarity_resnik)
+similarity_matrix_lin = format_profiles_similarity_data(profiles_similarity_lin)
+similarity_matrix_jiang = format_profiles_similarity_data(profiles_similarity_jiang)
+
+profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
 # onto_ic, freq_ic = hpo.get_ic_by_onto_and_freq(hpo_file)
@@ -254,6 +294,9 @@ write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluat
 write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 'FreqIC')
 write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file, 'OntoIC', 'FreqIC')
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
+write_similarity_matrix(similarity_matrix_resnik, similarity_matrix_resnik_file)
+write_similarity_matrix(similarity_matrix_lin, similarity_matrix_lin_file)
+write_similarity_matrix(similarity_matrix_jiang, similarity_matrix_jiang_file)
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
@@ -301,6 +344,9 @@ container = {
   :new_cluster_phenotypes => new_cluster_phenotypes.keys.length,
   :ontology_levels => ontology_levels,
   :distribution_percentage => distribution_percentage,
+  :similarity_matrix_resnik => similarity_matrix_resnik,
+  :similarity_matrix_lin => similarity_matrix_lin,
+  :similarity_matrix_jiang => similarity_matrix_jiang
  }
 # top_cluster_phenotypes.each_with_index do |cluster, i|
 #   clust_pr = cluster.map{|pr| [pr.join(', ')] }

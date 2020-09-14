@@ -144,3 +144,10 @@
 		%>
 	<%end%>
 </div>
+
+<div style="overflow: hidden">
+	<%=heatmap(id: :similarity_matrix_resnik, header: true, row_names: true, transpose: false )%>
+	<%=heatmap(id: :similarity_matrix_lin, header: true, row_names: true, transpose: false )%>
+	<%=heatmap(id: :similarity_matrix_jiang, header: true, row_names: true, transpose: false )%>
+</div>
+

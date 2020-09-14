@@ -162,7 +162,9 @@ def write_coverage_data(coverage_to_plot, coverage_to_plot_file)
 end
 
 def get_uniq_hpo_profiles(patient_data) # To aviod duplications due to more one mutation in the same patient
-  hpo_profiles = []
+  #transformar a hash
+  hpo_profiles = {}
+  #hpo_profiles = []
   parsed_pats = []
   patient_data.each do |variant_id, patient_rec|
     pat_id, count = variant_id.split('_i')
@@ -170,7 +172,8 @@ def get_uniq_hpo_profiles(patient_data) # To aviod duplications due to more one 
       next
     else
       parsed_pats << pat_id
-      hpo_profiles << patient_rec[HPOS]
+      #hpo_profiles << patient_rec[HPOS]
+      hpo_profiles[pat_id] = patient_rec[HPOS]
     end
   end
   return hpo_profiles
@@ -367,4 +370,46 @@ def get_profile_redundancy(hpo)
   parental_hpos_per_profile = parental_hpos_per_profile.map{|item| item[0]}
   profile_sizes, parental_hpos_per_profile = profile_sizes.zip(parental_hpos_per_profile).sort_by{|i| i.first}.reverse.transpose
   return profile_sizes, parental_hpos_per_profile
+end
+
+def format_profiles_similarity_data(profiles_similarity)
+  matrix = []
+  element_names = profiles_similarity.keys
+  matrix << element_names
+  profiles_similarity.each do |elementA, relations|
+    row = [elementA]
+    element_names.each do |elementB|
+      if elementA == elementB
+        row << 0
+      else
+        query = relations[elementB]
+        if !query.nil?
+          row << query
+        else
+          row << profiles_similarity[elementB][elementA]
+        end
+      end
+    end
+    matrix << row
+  end
+  matrix[0].unshift('pat')
+  return matrix
+end
+
+def write_similarity_matrix(similarity_matrix, similarity_matrix_file)  
+  File.open(similarity_matrix_file, 'w') do |f|
+    similarity_matrix.each do |row|
+      f.puts row.join("\t")
+    end
+  end
+end
+
+def get_profile_pairs(similarity_pairs, filename)
+  File.open(filename, 'w') do |f|
+    similarity_pairs.each do |pairsA, pairsB_and_values|
+      pairsB_and_values.each do |pairsB, values|
+        f.puts "#{pairsA}\t#{pairsB}\t#{values}"
+      end
+    end
+  end
 end
