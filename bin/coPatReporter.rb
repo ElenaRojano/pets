@@ -205,9 +205,9 @@ patient_data = load_patient_cohort(options)
 cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
 hpo.load_profiles(get_uniq_hpo_profiles(patient_data))
 
-profiles_similarity_resnik = hpo.get_profile_similarity
-profiles_similarity_lin = hpo.get_profile_similarity(sim_type: :lin)
-profiles_similarity_jiang = hpo.get_profile_similarity(sim_type: :jiang_conrath)
+profiles_similarity_resnik = hpo.compare_profiles
+profiles_similarity_lin = hpo.compare_profiles(sim_type: :lin)
+profiles_similarity_jiang = hpo.compare_profiles(sim_type: :jiang_conrath)
 
 resnik_profile_pairs = get_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
 
