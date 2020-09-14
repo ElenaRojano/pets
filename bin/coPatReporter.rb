@@ -301,6 +301,12 @@ system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} 
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
 
+###PLOTTING HEATMAPS
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_resnik_file} -o #{temp_folder}/resnik -m max") 
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{temp_folder}/lin -m comp1")    
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{temp_folder}/jiang")
+
+
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
 

@@ -380,7 +380,7 @@ def format_profiles_similarity_data(profiles_similarity)
     row = [elementA]
     element_names.each do |elementB|
       if elementA == elementB
-        row << 0
+        row << 'NA'
       else
         query = relations[elementB]
         if !query.nil?
