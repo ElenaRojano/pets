@@ -103,7 +103,7 @@ sims_pairs = write_profile_pairs(sims, sim_pairs_file)
 
 # Plot
 puts("Rendering plots ...") if options[:verbose] ### Verbose point
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap_from_pairs.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim_heatmap")} -m max -H")    
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim_heatmap")} -m max -p")    
 
 
 

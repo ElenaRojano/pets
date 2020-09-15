@@ -10,6 +10,10 @@ library("RColorBrewer")
 option_list <- list(
 	make_option(c("-d", "--data_file"), type="character",
 		help="Tabulated file with information about each sample"),
+	make_option(c("-H", "--header"), type="logical", default=FALSE, action="store_true",
+		help="Indicates that file has header"),
+	make_option(c("-p", "--pairs"), type="logical", default=FALSE, action="store_true",
+		help="Indicates if input file is a pairs-file instead a matrix"),
 	make_option(c("-o", "--output"), type="character", default="output",
 		help="Output figure file"),
 	make_option(c("-m", "--matrix_transformation"), type="character", default=NULL,
@@ -22,8 +26,21 @@ opt <- parse_args(OptionParser(option_list=option_list))
 ################################################################
 ## MAIN
 ################################################################
+if(opt$pairs){
+	data_raw <- read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE)
+	colnames(data_raw) <- c("SetA","SetB","Value")
 
-data <- as.matrix(read.table(opt$data_file, sep="\t", header=TRUE, stringsAsFactors=FALSE, row.names="pat"))
+	data <- matrix(0, ncol = length(unique(data_raw$SetB)), nrow = length(unique(data_raw$SetA)))
+	colnames(data) <- as.character(unique(data_raw$SetB))
+	rownames(data) <- as.character(unique(data_raw$SetA))
+	invisible(lapply(seq(nrow(data_raw)),function(i){
+		data[as.character(data_raw$SetA[i]),as.character(data_raw$SetB[i])] <<- data_raw$Value[i]
+	}))	
+}else{
+	data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names="pat"))
+}
+
+
 
 if(is.null(opt$matrix_transformation)){
 	matrix_transf <- data
