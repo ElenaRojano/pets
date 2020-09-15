@@ -161,7 +161,7 @@ def write_coverage_data(coverage_to_plot, coverage_to_plot_file)
   end
 end
 
-def get_uniq_hpo_profiles(patient_data) # To aviod duplications due to more one mutation in the same patient
+def get_uniq_hpo_profiles(patient_data) # To avoid duplications due to more one mutation in the same patient
   #transformar a hash
   hpo_profiles = {}
   #hpo_profiles = []
@@ -412,4 +412,27 @@ def get_profile_pairs(similarity_pairs, filename)
       end
     end
   end
+end
+
+def parse_clusters_file(clusters_file, patient_profiles)
+  clusters_info = {}
+  patients_info = {}
+  clusters_table = []
+  File.open(clusters_file).each do |line|
+    line.chomp!
+    clusterID, patientID = line.split("\t")
+    patientHPOProfile = patient_profiles[patientID]
+    #patients_info[patientID] = patientHPOProfile
+    query = clusters_info[patientID]
+    if query.nil? 
+      clusters_info[patientID] = {clusterID => patientHPOProfile}
+    else
+      query[clusterID] = patientHPOProfile
+    end
+  end
+  clusters_info.each do |clusterID, patients_info|
+    patients_per_cluster = patients_info.keys.length
+    clusters_table << [clusterID, patients_per_cluster, patients_info.keys, patients_info.values]
+  end
+  return clusters_table
 end

@@ -16,31 +16,9 @@ require 'coPatReporterMethods.rb'
 require 'report_html'
 require 'semtools'
 
-#Expand class:
+#Expand class (semtools modifications if necessary):
 class Ontology
-  def get_profile_similarity(sim_type: :resnick, ic_type: :resnick, bidirectional: true)
-     profiles_similarity = {} #calculate similarity between patients profile
-     #compare para calcular resnik
-     #return array of arrys = [[pacA, pacB, valueSS]]     
-     elements = @profiles.keys
-     #STDERR.puts elements.inspect
-     #Process.exit
-     while !elements.empty?
-      current_element = elements.shift
-      current_profile = @profiles[current_element]
-      elements.each do |element|
-        profile = @profiles[element]
-        value = compare(profile, current_profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
-        query = profiles_similarity[current_element]
-        if query.nil?
-          profiles_similarity[current_element] = {element => value}
-        else
-          query[element] = value
-        end
-      end    
-     end
-     return profiles_similarity
-  end
+
 end
 
 ##########################
@@ -203,7 +181,8 @@ end
 patient_data = load_patient_cohort(options)
 
 cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
-hpo.load_profiles(get_uniq_hpo_profiles(patient_data))
+patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
+hpo.load_profiles(patient_uniq_profiles)
 
 profiles_similarity_resnik = hpo.compare_profiles
 profiles_similarity_lin = hpo.compare_profiles(sim_type: :lin)
@@ -306,7 +285,6 @@ system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_res
 system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{temp_folder}/lin -m comp1")    
 system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{temp_folder}/jiang")
 
-
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
 
@@ -324,7 +302,7 @@ if !options[:chromosome_col].nil?
   end
 end
 #----------------------------------
-# Report
+# GENERAL COHORT ANALYZER REPORT
 #----------------------------------
 total_patients = 0
 new_cluster_phenotypes = {}
@@ -372,3 +350,11 @@ template = File.open(File.join(REPORT_FOLDER, 'cohort_report.erb')).read
 report = Report_html.new(container, 'Cohort quality report')
 report.build(template)
 report.write(options[:output_file]+'.html')
+
+
+#----------------------------------
+# CLUSTER COHORT ANALYZER REPORT
+#----------------------------------
+
+### => move down!!
+jiang_clusters = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
