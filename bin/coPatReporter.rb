@@ -188,7 +188,7 @@ profiles_similarity_resnik = hpo.compare_profiles
 profiles_similarity_lin = hpo.compare_profiles(sim_type: :lin)
 profiles_similarity_jiang = hpo.compare_profiles(sim_type: :jiang_conrath)
 
-resnik_profile_pairs = get_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
+resnik_profile_pairs = write_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
 
 similarity_matrix_resnik = format_profiles_similarity_data(profiles_similarity_resnik)
 similarity_matrix_lin = format_profiles_similarity_data(profiles_similarity_lin)
