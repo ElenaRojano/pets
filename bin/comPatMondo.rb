@@ -93,7 +93,7 @@ puts("Obtaining MONDO profiles with HPOs ("+ mondo_profiles.length.to_s + ")") i
 
 # Compare
 puts("Comparing patients against MONDO profiles. It can take a while ...") if options[:verbose] ### Verbose point
-sims = hpo.compare_profiles(external_profiles: mondo_profiles, sim_type: :resnick, ic_type: :resnick, bidirectional: false)
+sims = hpo.compare_profiles(external_profiles: mondo_profiles, sim_type: :resnick, ic_type: :resnick, bidirectional: false, against_external: true) # Compare patients agains MONDO
 
 # Export
 puts("Exporting results") if options[:verbose] ### Verbose point
@@ -103,7 +103,7 @@ sims_pairs = write_profile_pairs(sims, sim_pairs_file)
 
 # Plot
 puts("Rendering plots ...") if options[:verbose] ### Verbose point
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim_heatmap")} -m max -p")    
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim_heatmap")} -m max -p -s -c 'MONDO terms' -r 'Patients'")    
 
 
 
