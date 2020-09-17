@@ -110,6 +110,11 @@ OptionParser.new do |opts|
     options[:timer] = true
   end
 
+  options[:plots] = false
+  opts.on("-p", "--plots", "Render plots") do 
+    options[:plots] = true
+  end
+
   opts.on_tail("-h", "--help", "Show this message") do
     puts opts
     exit
@@ -233,9 +238,11 @@ end
 timeflag_export = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
 
 # Plot
-puts("Rendering plots ...") if options[:verbose] ### Verbose point
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim")} -m max -p -s -c 'MONDO terms' -r 'Patients'")    
-timeflag_render = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+if options[:plots]
+  puts("Rendering plots ...") if options[:verbose] ### Verbose point
+  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim")} -m max -p -s -c 'MONDO terms' -r 'Patients'")    
+  timeflag_render = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+end
 
 if options[:timer]
   times = {}
@@ -250,7 +257,7 @@ if options[:timer]
   end
   times[:simCalc] = timeflag_sims - timeflag_mondoCleaned
   times[:export] = timeflag_export - timeflag_sims
-  times[:plots] = timeflag_render - timeflag_export
+  times[:plots] = timeflag_render - timeflag_export if options[:plots]
   # Show
   puts " <<< TIME ELAPSED >>>"
   times.each{|k,v| puts("Time elapsed for (" + k.to_s + ") : " + v.round(2).to_s + " s")}
