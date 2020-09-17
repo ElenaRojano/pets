@@ -5,6 +5,15 @@ library(gplots)
 library("RColorBrewer")
 
 #####################
+## FUNCTIONS
+#####################
+vectdist <- function(vectA, vectB){
+	# VectA and B must have same length. Exception not handled
+	return(sqrt(sum((vectA - vectB)^2)))
+}
+
+
+#####################
 ## OPTPARSE
 #####################
 option_list <- list(
@@ -77,6 +86,24 @@ if(opt$same_sets){
 	quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
 	hr <- hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cutree(hr, h = quantValue)
+}else{
+	# Calc similitudes of rows
+	numItems = nrow(matrix_transf)
+	Mdist = matrix(Inf,nrow = numItems, ncol = numItems)
+	invisible(lapply(seq(numItems), function(i){
+		if(i != numItems){
+			invisible(lapply(seq(i+1, numItems), function(j){
+				v = vectdist(matrix_transf[i,],matrix_transf[j,])
+				Mdist[i,j] <<- v
+				Mdist[j,i] <<- v
+			}))
+		}
+		Mdist[i,i] <<- 0
+	}))
+	# Obtaing clustering
+	quantValue <- quantile(Mdist, c(.2), na.rm = TRUE)
+	hr <- hclust(as.dist(Mdist), method="ward.D2")
+	groups <- cutree(hr, h = quantValue)
 }
 
 ######### RENDER
@@ -85,13 +112,11 @@ pdf(paste(opt$output, '_heatmap.pdf', sep=''))
 		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel)
 	}else{
-		heatmap.2(data, Rowv=NULL, Colv=NULL, trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
+		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=NULL, trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel)
 
 	}
 dev.off()
 
 ######### EXPORT
-if(opt$same_sets){
-	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
-}
+write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
