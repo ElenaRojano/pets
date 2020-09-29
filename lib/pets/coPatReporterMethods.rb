@@ -406,7 +406,7 @@ def write_similarity_matrix(similarity_matrix, similarity_matrix_file)
   end
 end
 
-def get_profile_pairs(similarity_pairs, filename)
+def write_profile_pairs(similarity_pairs, filename)
   File.open(filename, 'w') do |f|
     similarity_pairs.each do |pairsA, pairsB_and_values|
       pairsB_and_values.each do |pairsB, values|

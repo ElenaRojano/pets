@@ -215,7 +215,7 @@ profiles_similarity_resnik = hpo.compare_profiles
 profiles_similarity_lin = hpo.compare_profiles(sim_type: :lin)
 profiles_similarity_jiang = hpo.compare_profiles(sim_type: :jiang_conrath)
 
-resnik_profile_pairs = get_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
+resnik_profile_pairs = write_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
 
 similarity_matrix_resnik = format_profiles_similarity_data(profiles_similarity_resnik)
 similarity_matrix_lin = format_profiles_similarity_data(profiles_similarity_lin)
@@ -308,9 +308,9 @@ system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_i
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
 
 ###PLOTTING HEATMAPS
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_resnik_file} -o #{temp_folder}/resnik -m max") 
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{temp_folder}/lin -m comp1")    
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{temp_folder}/jiang")
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_resnik_file} -o #{temp_folder}/resnik -m max -H") 
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{temp_folder}/lin -m comp1 -H")    
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{temp_folder}/jiang -H")
 
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
