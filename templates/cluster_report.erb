@@ -1,0 +1,25 @@
+<%
+	hpo = @hash_vars[:hpo]
+	def get_hpo_link(hpo_code)
+		link = '-'
+		if hpo_code != '-'
+			link = "<a href=\"https://hpo.jax.org/app/browse/term/#{hpo_code}\">#{hpo_code}</a>"
+		end
+		return link
+	end
+%>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">Patient HPO profiles by cluster.</h1>
+		<%= table(id: :jiang_clusters, header: true, border: 2, row_names: false, text: true, 
+			cell_align: %w( center )) do |data|
+				data.each do |element|
+					#STDERR.puts element.inspect
+					element[2] = element[2].map{|patID| "<p>#{patID}</p>" }.join("\n")
+					element[3] = element[3].map{|profile| "<p>#{profile.map{|hpo_code| get_hpo_link(hpo_code)}.join(', ')}</p>" }.join("\n")
+					element[4] = element[4].map{|transl_profile| "<p>#{transl_profile.join(', ')}</p>"}.join("\n")
+				end
+				data.unshift(["Cluster ID","Patients in Cluster","Patient IDs", "HPO codes", "Phenotypes"])				
+			end
+		%>
+</div>
