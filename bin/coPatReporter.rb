@@ -32,6 +32,33 @@ def read_excluded_hpo_file(file)
   return excluded_hpo
 end
 
+# def translate_codes(clusters, hpo)
+#   clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
+#     patient_hpos_ary.map!{|patient_hpos| patient_hpos.map{|hpo_code| hpo.translate_id(hpo_code)}}
+#   end
+#   return clusters
+# end
+
+
+def translate_codes(clusters, hpo)
+  translated_clusters = []
+  clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
+    #patient_hpos_ary.each do |patient_hpos| 
+      #patient_hpos.each do |hpo_code| 
+        translate_codes = patient_hpos_ary.map{|patient_hpos| patient_hpos.map{|hpo_code| hpo.translate_id(hpo_code)}}
+        translated_clusters << [clusterID, 
+          num_of_pats, 
+          patientIDs_ary, 
+          patient_hpos_ary, 
+          translate_codes
+        ]
+      #end
+    #end
+  end
+  #STDERR.puts translated_clusters.inspect
+  #Process.exit
+  return translated_clusters
+end
 
 ##########################
 #OPT-PARSER
@@ -351,10 +378,31 @@ report = Report_html.new(container, 'Cohort quality report')
 report.build(template)
 report.write(options[:output_file]+'.html')
 
-
 #----------------------------------
 # CLUSTER COHORT ANALYZER REPORT
 #----------------------------------
 
-### => move down!!
-jiang_clusters = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
+#jiang_clusters = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
+jiang_clusters_codes = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
+jiang_clusters = translate_codes(jiang_clusters_codes, hpo)
+
+#resnik_clusters = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
+resnik_clusters_codes = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
+resnik_clusters = translate_codes(resnik_clusters_codes, hpo)
+
+#lin_clusters = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
+lin_clusters_codes = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
+lin_clusters = translate_codes(lin_clusters_codes, hpo)
+
+container = {
+  #:temp_folder => temp_folder,
+  :jiang_clusters => jiang_clusters,
+  :resnik_clusters => resnik_clusters,
+  :lin_clusters => lin_clusters,
+  :hpo => hpo
+ }
+
+template = File.open(File.join(REPORT_FOLDER, 'cluster_report.erb')).read
+report = Report_html.new(container, 'Patient clusters report')
+report.build(template)
+report.write(options[:output_file]+'_clusters.html')
