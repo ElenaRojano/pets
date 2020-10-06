@@ -12,6 +12,27 @@ vectdist <- function(vectA, vectB){
 	return(sqrt(sum((vectA - vectB)^2)))
 }
 
+toDistances <- function(vectors_matrix, rows = TRUE){
+	if(!rows){
+		vectors_matrix = t(vectors_matrix)
+	}
+	# Calc similitudes of rows
+	numItems = nrow(vectors_matrix)
+	Mdist = matrix(Inf,nrow = numItems, ncol = numItems)
+	invisible(lapply(seq(numItems), function(i){
+		if(i != numItems){
+			invisible(lapply(seq(i+1, numItems), function(j){
+				v = vectdist(vectors_matrix[i,],vectors_matrix[j,])
+				Mdist[i,j] <<- v
+				Mdist[j,i] <<- v
+			}))
+		}
+		Mdist[i,i] <<- 0
+	}))
+	return(Mdist)
+}
+
+
 
 #####################
 ## OPTPARSE
@@ -86,24 +107,22 @@ if(opt$same_sets){
 	quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
 	hr <- hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cutree(hr, h = quantValue)
+	######### EXPORT
+	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
 }else{
 	# Calc similitudes of rows
-	numItems = nrow(matrix_transf)
-	Mdist = matrix(Inf,nrow = numItems, ncol = numItems)
-	invisible(lapply(seq(numItems), function(i){
-		if(i != numItems){
-			invisible(lapply(seq(i+1, numItems), function(j){
-				v = vectdist(matrix_transf[i,],matrix_transf[j,])
-				Mdist[i,j] <<- v
-				Mdist[j,i] <<- v
-			}))
-		}
-		Mdist[i,i] <<- 0
-	}))
+	mdistRows = toDistances(matrix_transf)
+	mdistCols = toDistances(matrix_transf, FALSE)
 	# Obtaing clustering
-	quantValue <- quantile(Mdist, c(.2), na.rm = TRUE)
-	hr <- hclust(as.dist(Mdist), method="ward.D2")
-	groups <- cutree(hr, h = quantValue)
+	quantValue_row <- quantile(mdistRows, c(.2), na.rm = TRUE)
+	hr_row <- hclust(as.dist(mdistRows), method="ward.D2")
+	groups_row <- cutree(hr_row, h = quantValue_row)
+	quantValue_col <- quantile(mdistCols, c(.2), na.rm = TRUE)
+	hr_col <- hclust(as.dist(mdistCols), method="ward.D2")
+	groups_col <- cutree(hr_col, h = quantValue_col)
+	######### EXPORT
+	write.table(groups_row, file=paste(opt$output, '_clusters_rows.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
+	write.table(groups_col, file=paste(opt$output, '_clusters_cols.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
 }
 
 ######### RENDER
@@ -112,11 +131,9 @@ pdf(paste(opt$output, '_heatmap.pdf', sep=''))
 		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel)
 	}else{
-		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=NULL, trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
+		heatmap.2(data, Rowv=as.dendrogram(hr_row), Colv=as.dendrogram(hr_col), trace="none", col=brewer.pal(11,"RdBu"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel)
 
 	}
 dev.off()
 
-######### EXPORT
-write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)

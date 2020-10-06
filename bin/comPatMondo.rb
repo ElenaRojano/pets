@@ -34,38 +34,17 @@ def read_patient_profiles(file, header: true, col_sep: "\t", profile_sep: "|")
 end
 
 
-def read_expand_file(file)
+def read_expand_file(file, col_sep: "\t", comment_char: "#")
   expand_table = {}
-  header = true
-  CSV.open(file, "r", { :col_sep => "\t" }).each do |row|
-      # Row Format
-      #  0 - Disease DB
-      #  1 - Disease identifier
-      #  2 - Disease name
-      #  3 - Negation (qualifier)
-      #  4 - HPO ID
-      #  5 - Reference
-      #  6 - Evidence code
-      #  7 - Onset
-      #  8 - Frequency HPO
-      #  9 - Modifier
-      #  10 - Sub-ontology
-      #  11 - Alternative names
-      #  12 - Curators
-      #  13- Frequency Raw
-      #  14 - Sex
-      # row = row[0].split("\t")
-    if header
-      header = false
-    else
-      dis_id = row[5]
-      dis_id = row[0] + ':' + row[1] if dis_id.nil?
+  CSV.open(file, "r", { :col_sep => col_sep }).each do |row|
+    if row[0][0] != comment_char
+      dis_id = row[0]
       dis_id.gsub!('ORPHA','Orphanet')
       dis_id.gsub!('OMIM','OMIMPS')
       if !expand_table.include?(dis_id.to_sym)
-        expand_table[dis_id] = [row[4].chomp.to_sym]
+        expand_table[dis_id] = [row[3].chomp.to_sym]
       else
-        expand_table[dis_id] << row[4].chomp.to_sym
+        expand_table[dis_id] << row[3].chomp.to_sym
       end
     end
   end
@@ -115,6 +94,39 @@ OptionParser.new do |opts|
     options[:plots] = true
   end
 
+  allowed_sims = {"resnick" => :resnick, "lin" => :lin, "jiang_conrath" => :jiang_conrath}
+  options[:similitude] = allowed_sims["resnick"]
+  opts.on("-S", "--similitude TYPE", "Specify similitude. Allowed: resnick, resnick_observed, seco, zhou, sanchez. Default: resnick") do |data|
+    sim = allowed_sims[data]
+    if sim.nil?
+      warn 'Specified similitude type is not allowed. Resnick will be used'
+    else
+      options[:similitude] = sim
+    end      
+  end
+
+  allowed_ics = {"resnick" => :resnick, "resnick_observed" => :resnick_observed, 
+                  "seco" => :seco, "zhou" => :zhou, "sanchez" => :sanchez}
+  options[:ic] = allowed_sims["resnick"]
+  opts.on("-I", "--ic TYPE", "Specify ic. Allowed: resnick, lin, jiang_conrath. Default: resnick") do |data|
+    ic = allowed_ics[data]
+    if ic.nil?
+      warn 'Specified IC type is not allowed. Resnick will be used'
+    else
+      options[:ic] = ic
+    end      
+  end
+
+  options[:hpo] = nil
+  opts.on("-H", "--hpo FILE", "HPO JSON file") do |data|
+    options[:hpo] = data
+  end
+
+  options[:mondo] = nil
+  opts.on("-M", "--mondo FILE", "MONDO JSON file") do |data|
+    options[:mondo] = data
+  end
+
   opts.on_tail("-h", "--help", "Show this message") do
     puts opts
     exit
@@ -131,6 +143,10 @@ if options[:verbose]
   puts "\tInput file :: " + options[:input_file].inspect
   puts "\tOutput path :: " + options[:output_file].inspect
   puts "\tExpand file :: " + options[:expand].inspect
+  puts "\tHPO JSON file :: " + options[:hpo].inspect
+  puts "\tMONDO JSON file :: " + options[:mondo].inspect
+  puts "\tIC type :: " + options[:ic].inspect
+  puts "\tSimilitude type :: " + options[:similitude].inspect
   puts "\tVerbose mode :: " + options[:verbose].inspect
   puts "\tExport flag :: " + options[:export].inspect
   puts "\tTimer flag :: " + options[:timer].inspect
@@ -140,9 +156,19 @@ timeflag_init = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:time
 
 # Load ontologies
 puts("Loading MONDO ontology ...") if options[:verbose] ### Verbose point
-mondo = Ontology.new(file: MONDO_FILE, load_file: true)
+if options[:mondo].nil?
+  mondo = Ontology.new(file: MONDO_FILE, load_file: true)
+else
+  mondo = Ontology.new
+  mondo.read(options[:mondo])
+end
 puts("MONDO ontology loaded\nLoading Human Phenotype Ontology ...") if options[:verbose] ### Verbose point
-hpo = Ontology.new(file: HPO_FILE, load_file: true)
+if options[:hpo].nil?
+  hpo = Ontology.new(file: HPO_FILE, load_file: true)
+else
+  hpo = Ontology.new
+  hpo.read(options[:hpo])
+end
 puts("HP ontology loaded") if options[:verbose] ### Verbose point
 # Load cohort 
 timeflag_ontologyLoaded = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
@@ -153,7 +179,7 @@ patients.each do |id, hpos|
 	patients[id], rejected_codes = hpo.check_ids(hpos.map{|term| term.to_sym}, substitute: false)
   warn("Patient (" + id.to_s + ") contains not allowed terms.")if !rejected_codes.empty?
 end
-hpo.load_profiles(patients, reset_stored: false)
+hpo.load_profiles(patients, reset_stored: true)
 hpo.clean_profiles(store: true, remove_alternatives: false)
 timeflag_patientsLoaded = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
 
@@ -220,15 +246,19 @@ timeflag_mondoCleaned = Process.clock_gettime(Process::CLOCK_MONOTONIC) if optio
 
 puts "Cleaning MONDO profiles process has left (" + mondo_profiles.length.to_s + "/" + mondo_profiles_ids.length.to_s + ") and has modified (" + affected_ids.length.to_s + ") profiles" if options[:verbose]
 
+# Store
+mondo.load_item_relations_to_terms(mondo_profiles, true)
 
 # Compare
 puts("Comparing patients against MONDO profiles. It can take a while ...") if options[:verbose] ### Verbose point
-sims = hpo.compare_profiles(external_profiles: mondo_profiles, sim_type: :resnick, ic_type: :resnick, bidirectional: false, against_external: true) # Compare patients agains MONDO
+sims = hpo.compare_profiles(external_profiles: mondo_profiles, sim_type: options[:similitude], ic_type: options[:ic], bidirectional: false, against_external: true) # Compare patients agains MONDO
 timeflag_sims = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
 
 # Export
 puts("Exporting results") if options[:verbose] ### Verbose point
-sim_pairs_file = File.join(options[:output_file],"sim_pairs")
+sim_pairs_basename = "sim_pairs_ic"+ options[:ic].to_s + "_sim" + options[:similitude].to_s
+sim_pairs_basename += "_expanded" if options[:expand]
+sim_pairs_file = File.join(options[:output_file],sim_pairs_basename)
 sims_pairs = write_profile_pairs(sims, sim_pairs_file)
 if(options[:export])
   puts("Exporting ontologies to JSON") if options[:verbose] ### Verbose point
@@ -240,7 +270,7 @@ timeflag_export = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:ti
 # Plot
 if options[:plots]
   puts("Rendering plots ...") if options[:verbose] ### Verbose point
-  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],"sim")} -m max -p -s -c 'MONDO terms' -r 'Patients'")    
+  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{sim_pairs_file} -o #{File.join(options[:output_file],sim_pairs_basename)} -m max -p -s -c 'MONDO terms' -r 'Patients'")    
   timeflag_render = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
 end
 
