@@ -78,21 +78,21 @@ df$Radians <- sparseLevelItems(df$Level)
 df$LevelD <- factor(as.character(df$Level), levels = as.character(c(0,seq(max(df$Level)))))
 df$Color <- as.numeric(df$Color)
 
+# Sort by code to be (always) the same
+df <- df[order(df$Term),]
+
 if(opt$verbose) message("Generating plot") # Verbose point
 
 if("Size" %in% colnames(df)){
   aes_aux <- aes(x = LevelD, y = Radians, color = Color, size = Size)
-  # pp = ggplot(df, aes(x = LevelD, y = Radians, color = Color, size = Size))
 }else{
   aes_aux <- aes(x = LevelD, y = Radians, color = Color)
-  # pp = ggplot(df, aes(x = LevelD, y = Radians, color = Color))
 }
 
 pp = ggplot() + 
       geom_point(data = df[df$Type == "Added",],mapping = aes(x = LevelD, y = Radians), alpha = 0.3, size = 0.7) + 
       geom_point(data = df[df$Type == "Raw",],mapping = aes_aux) + 
       scale_x_discrete("LevelD") + 
-#      xlim(c(0,max(df$Level))) + 
       ylim(c(0,2*pi)) +
       coord_polar(theta = "y")
 
