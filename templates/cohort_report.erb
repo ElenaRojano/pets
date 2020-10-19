@@ -83,7 +83,17 @@
 					})
 			end
 		%>
-
+	</div>
+	<p> HPOs frequency distribution. Colour based on the HPO frequency.</p>
+	<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;">
+		<%= 
+		plot = File.join(@hash_vars[:temp_folder],'hpo_freq_colour.png')
+			if File.exists?(plot)
+				embed_img(plot, 'width="800" height="800"') 
+			else
+				"<p> Invalid file specified. </p>"
+			end
+		%>
 	</div>
 </div>
 
