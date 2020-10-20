@@ -439,3 +439,16 @@ def parse_clusters_file(clusters_file, patient_profiles)
   return clusters_table
 end
 
+def get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
+  hpo_frequency = Hash.new(0)
+  patient_uniq_profiles.values.each do |hpos|
+    hpos.each do |hpo|
+      hpo_frequency[hpo] += 1
+    end
+  end
+  File.open(hpo_frequency_file, 'w') do |f|
+    hpo_frequency.each do |hpo_code, freq|
+      f.puts "#{hpo_code.to_s}\t#{freq}"
+    end
+  end
+end

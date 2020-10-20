@@ -176,6 +176,7 @@ temp_folder = File.join(output_folder, 'temp')
 matrix_file = File.join(temp_folder, 'pat_hpo_matrix.txt')
 hpo_ic_file = File.join(temp_folder, 'hpo_ic.txt')
 hpo_profile_ic_file = File.join(temp_folder, 'hpo_ic_profile.txt')
+hpo_frequency_file = File.join(temp_folder, 'hpo_cohort_frequency.txt')
 parents_per_term_file = File.join(temp_folder, 'parents_per_term.txt')
 clustered_patients_file = File.join(temp_folder, 'cluster_asignation')
 cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
@@ -239,6 +240,20 @@ onto_ic_profile = onto_ic_profile.values
 freq_ic_profile = freq_ic_profile.values
 clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 
 all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, options[:pat_id_col])
+get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
+
+###########################
+## TESTING CLUSTERING METHODS
+## DELETE AFTER USE
+
+# jiang_clusters_codes = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
+# jiang_clusters = translate_codes(jiang_clusters_codes, hpo)
+
+
+# def get_cluster_metadata(clusters_array)
+# end
+###########################
+
 
 summary_stats = get_summary_stats(patient_data, cohort_hpos, hpo)
 summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]
@@ -307,10 +322,13 @@ system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} 
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
 
+###Cohort frequency calculation
+system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{File.join(temp_folder, 'hpo_freq_colour')} -O #{hpo_file}") 
+
 ###PLOTTING HEATMAPS
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_resnik_file} -o #{temp_folder}/resnik -m max -H") 
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{temp_folder}/lin -m comp1 -H")    
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{temp_folder}/jiang -H")
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_resnik_file} -o #{File.join(temp_folder, 'resnik')} -m max -H") 
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{File.join(temp_folder, 'lin')} -m comp1 -H")    
+system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{File.join(temp_folder, 'jiang')} -H")
 
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
