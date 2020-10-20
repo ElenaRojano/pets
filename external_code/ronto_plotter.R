@@ -23,6 +23,8 @@ option_list <- list(
     help="White list file of terms to be plotted (plus input file terms). If not specified, all ontology terms will be plotted"),
   make_option(c("-H", "--header"), type="logical", default=FALSE, action = "store_true",
     help="Flag to indicate that input file has header"),
+  make_option(c("-e", "--expand_wl"), type="logical", default=FALSE, action = "store_true",
+    help="Flag to indicate that white list must be expanded using input terms and their parentals"),
   make_option(c("-v", "--verbose"), type="logical", default=FALSE, action = "store_true",
     help="Input file to be loaded")
 )
@@ -121,7 +123,7 @@ df$Type <- rep("Raw",nrow(df))
 topopulate <- onto$id
 if(!is.null(opt$white_list)){ # Populate with white list
   wl <- read.table(file = opt$white_list, sep = "\t", stringsAsFactors = FALSE, header = FALSE)[,1]
-  wl <- unique(c(wl,df$Term))
+  if(opt$expand_wl) wl <- unique(c(wl,df$Term))
   topopulate <- unique(unlist(lapply(wl,function(item){get_ancestors(onto,item)})))
 }
 invisible(apply_fun(setdiff(topopulate,unique(df$Term)),function(id){
