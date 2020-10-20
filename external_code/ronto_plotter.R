@@ -9,6 +9,7 @@
 suppressPackageStartupMessages(require(optparse)) 
 suppressPackageStartupMessages(require(ggplot2)) 
 suppressPackageStartupMessages(require(ontologyIndex)) 
+suppressPackageStartupMessages(require(pbapply)) 
 
 # Prepare command line input 
 option_list <- list(
@@ -42,11 +43,64 @@ sparseLevelItems <- function(levels){
 }
 
 
+findPaths <- function(ontology, verbose = FALSE){
+  calculated_paths <- list()
+  appfun <- ifelse(verbose,pblapply,lapply)
+  invisible(appfun(ontology$id,function(id){
+    if(!id %in% names(calculated_paths)){
+      paths <- findPath(id,ontology)
+      calculated_paths[id] <<- paths
+      # Add already expanded terms
+    }
+  }))
+  return(calculated_paths)
+}
+
+
+findShortestPath <- function(term,ontology,calculated_paths = NULL){
+  # Check
+  if(!is.null(calculated_paths)){
+    if(term %in% names(calculated_paths)){
+      return(min(unlist(lapply(calculated_paths[term],length)))-1)
+    }
+  }
+
+  paths <- findPath(term,ontology)
+  return(min(unlist(lapply(paths,length)))-1)
+}
+
+findPath <- function(term,ontology,calculated_paths = NULL){
+  # Check
+  if(!is.null(calculated_paths)){
+    if(term %in% names(calculated_paths)){
+      return(calculated_paths[term])
+    }
+  }
+  # Take parentals
+  parents <- ontology$parents[term]
+  # Expand if possible
+  if(length(parents) > 0){
+    expansion <- lapply(parents,function(p){findPath(p,ontology)})
+  }else{
+    expansion <- list() 
+  }
+  # Concat expansions
+  expansion_updated <- lapply(expansion,function(ex){append(term,ex)})
+  # Return
+  return(expansion_updated)
+}
+
+
 ############################################################
 ##                           MAIN                         ##
 ############################################################
 
-if(opt$verbose) message("Loading input file") # Verbose point
+apply_fun <- lapply
+if(opt$verbose){ # Verbose point
+  message("Loading input file")
+  apply_fun <- pblapply
+  pboptions(type="txt")
+} 
 
 # Load data
 df <- read.table(file = opt$input_file, sep = "\t", stringsAsFactors = FALSE, header = opt$header) 
@@ -62,24 +116,26 @@ if(opt$verbose) message("Populating with all available terms") # Verbose point
 
 # Populate input df with all allowed terms
 df$Type <- rep("Raw",nrow(df))
-invisible(lapply(setdiff(onto$id,unique(df$Term)),function(id){
+invisible(apply_fun(setdiff(onto$id,unique(df$Term)),function(id){
   df <<- rbind(df, as.list(c(id, rep(0, ncol(df)-2), "Added")))
 }))
 
-if(opt$verbose) message("Calculating levels") # Verbose point
+if(opt$verbose) message("Calculating levels ...") # Verbose point
 
 # Obtain levels
-levels <- lapply(onto$id,function(id){length(get_ancestors(onto,id)) - 1})
+# paths <- findPaths(onto,verbose = opt$verbose)
+# levels <- apply_fun(onto$id,function(id){findShortestPath(id,onto,paths)})
+levels <- apply_fun(onto$id,function(id){length(get_ancestors(onto,id)) - 1})
 names(levels) <- onto$id
+
+# Sort by code to be (always) the same
+df <- df[order(df$Term),]
 
 # Include plotting data
 df$Level <- unlist(lapply(df$Term,function(term){levels[term]}))
 df$Radians <- sparseLevelItems(df$Level)
 df$LevelD <- factor(as.character(df$Level), levels = as.character(c(0,seq(max(df$Level)))))
 df$Color <- as.numeric(df$Color)
-
-# Sort by code to be (always) the same
-df <- df[order(df$Term),]
 
 if(opt$verbose) message("Generating plot") # Verbose point
 
