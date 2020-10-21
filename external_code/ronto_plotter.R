@@ -19,8 +19,12 @@ option_list <- list(
     help="Output graph file name"),
   make_option(c("-O", "--ontology"), type="character", default=NULL,
     help="Ontology OBO file to be loaded"),
+  make_option(c("-w", "--white_list"), type="character", default=NULL,
+    help="White list file of terms to be plotted (plus input file terms). If not specified, all ontology terms will be plotted"),
   make_option(c("-H", "--header"), type="logical", default=FALSE, action = "store_true",
     help="Flag to indicate that input file has header"),
+  make_option(c("-e", "--expand_wl"), type="logical", default=FALSE, action = "store_true",
+    help="Flag to indicate that white list must be expanded using input terms and their parentals"),
   make_option(c("-v", "--verbose"), type="logical", default=FALSE, action = "store_true",
     help="Input file to be loaded")
 )
@@ -116,9 +120,15 @@ if(opt$verbose) message("Populating with all available terms") # Verbose point
 
 # Populate input df with all allowed terms
 df$Type <- rep("Raw",nrow(df))
-invisible(apply_fun(setdiff(onto$id,unique(df$Term)),function(id){
+topopulate <- onto$id
+if(!is.null(opt$white_list)){ # Populate with white list
+  wl <- read.table(file = opt$white_list, sep = "\t", stringsAsFactors = FALSE, header = FALSE)[,1]
+  if(opt$expand_wl) wl <- unique(c(wl,df$Term))
+  topopulate <- unique(unlist(lapply(wl,function(item){get_ancestors(onto,item)})))
+}
+invisible(apply_fun(setdiff(topopulate,unique(df$Term)),function(id){
   df <<- rbind(df, as.list(c(id, rep(0, ncol(df)-2), "Added")))
-}))
+}))  
 
 if(opt$verbose) message("Calculating levels ...") # Verbose point
 
@@ -147,7 +157,8 @@ if("Size" %in% colnames(df)){
 
 pp = ggplot() + 
       geom_point(data = df[df$Type == "Added",],mapping = aes(x = LevelD, y = Radians), alpha = 0.3, size = 0.7) + 
-      geom_point(data = df[df$Type == "Raw",],mapping = aes_aux) + 
+      geom_point(data = df[df$Type == "Raw",],mapping = aes_aux, alpha = 0.6) + 
+      scale_colour_gradient(low = "orange", high = "red") + 
       scale_x_discrete("LevelD") + 
       ylim(c(0,2*pi)) +
       coord_polar(theta = "y")
