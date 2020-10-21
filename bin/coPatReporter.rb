@@ -187,6 +187,10 @@ similarity_matrix_resnik_file = File.join(temp_folder, 'similarity_matrix_resnik
 similarity_matrix_lin_file = File.join(temp_folder, 'similarity_matrix_lin.txt')
 similarity_matrix_jiang_file = File.join(temp_folder, 'similarity_matrix_jiang.txt')
 profiles_similarity_resnik_file = File.join(temp_folder, 'profiles_similarity_resnik.txt')
+jiang_clusters_distribution_file = File.join(temp_folder, 'jiang_clusters_distribution.txt')
+resnik_clusters_distribution_file = File.join(temp_folder, 'resnik_clusters_distribution.txt')
+lin_clusters_distribution_file = File.join(temp_folder, 'lin_clusters_distribution.txt')
+
 # cnvs_lenght_to_plot_file = File.join(temp_folder, 'cnvs_lenght.txt')
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
@@ -218,9 +222,11 @@ profiles_similarity_jiang = hpo.compare_profiles(sim_type: :jiang_conrath)
 
 resnik_profile_pairs = write_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
 
+
 similarity_matrix_resnik = format_profiles_similarity_data(profiles_similarity_resnik)
 similarity_matrix_lin = format_profiles_similarity_data(profiles_similarity_lin)
 similarity_matrix_jiang = format_profiles_similarity_data(profiles_similarity_jiang)
+
 
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
@@ -242,17 +248,6 @@ clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, cl
 all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, options[:pat_id_col])
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
-###########################
-## TESTING CLUSTERING METHODS
-## DELETE AFTER USE
-
-# jiang_clusters_codes = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
-# jiang_clusters = translate_codes(jiang_clusters_codes, hpo)
-
-
-# def get_cluster_metadata(clusters_array)
-# end
-###########################
 
 
 summary_stats = get_summary_stats(patient_data, cohort_hpos, hpo)
@@ -401,19 +396,26 @@ report.write(options[:output_file]+'.html')
 #----------------------------------
 
 #jiang_clusters = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
-jiang_clusters_codes = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
+jiang_clusters_codes, jiang_clusters_info = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
+get_cluster_metadata(jiang_clusters_info, jiang_clusters_distribution_file)
+system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{jiang_clusters_distribution_file} -o #{File.join(temp_folder, 'jiang_clusters_distribution')} -x PatientsNumber -y HPOAverage")
 jiang_clusters = translate_codes(jiang_clusters_codes, hpo)
 
+
 #resnik_clusters = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
-resnik_clusters_codes = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
+resnik_clusters_codes, resnik_clusters_info = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
+get_cluster_metadata(resnik_clusters_info, resnik_clusters_distribution_file)
+system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{resnik_clusters_distribution_file} -o #{File.join(temp_folder, 'resnik_clusters_distribution')} -x PatientsNumber -y HPOAverage")
 resnik_clusters = translate_codes(resnik_clusters_codes, hpo)
 
 #lin_clusters = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
-lin_clusters_codes = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
+lin_clusters_codes, lin_clusters_info = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
+get_cluster_metadata(lin_clusters_info, lin_clusters_distribution_file)
+system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{lin_clusters_distribution_file} -o #{File.join(temp_folder, 'lin_clusters_distribution')} -x PatientsNumber -y HPOAverage")
 lin_clusters = translate_codes(lin_clusters_codes, hpo)
 
 container = {
-  #:temp_folder => temp_folder,
+  :temp_folder => temp_folder,
   :jiang_clusters => jiang_clusters,
   :resnik_clusters => resnik_clusters,
   :lin_clusters => lin_clusters,
