@@ -235,7 +235,7 @@ observed_keys.each do |k| # duplitacte to symbols
   freq_ic[k.to_s] = freq_ic[k]
 end
 # onto_ic_profile, freq_ic_profile = hpo.get_ic_profile_by_onto_and_freq
-onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnick_dual_ICs
+onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnik_dual_ICs
 onto_ic_profile = onto_ic_profile.values
 freq_ic_profile = freq_ic_profile.values
 clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 

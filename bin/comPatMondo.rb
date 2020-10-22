@@ -34,21 +34,38 @@ def read_patient_profiles(file, header: true, col_sep: "\t", profile_sep: "|")
 end
 
 
-def read_expand_file(file, col_sep: "\t", comment_char: "#")
-  expand_table = {}
+def read_infer_file(file, col_sep: "\t", comment_char: "#")
+  infer_table = {}
   CSV.open(file, "r", { :col_sep => col_sep }).each do |row|
     if row[0][0] != comment_char
       dis_id = row[0]
       dis_id.gsub!('ORPHA','Orphanet')
       dis_id.gsub!('OMIM','OMIMPS')
-      if !expand_table.include?(dis_id.to_sym)
-        expand_table[dis_id] = [row[3].chomp.to_sym]
+      if !infer_table.include?(dis_id.to_sym)
+        infer_table[dis_id] = [row[3].chomp.to_sym]
       else
-        expand_table[dis_id] << row[3].chomp.to_sym
+        infer_table[dis_id] << row[3].chomp.to_sym
       end
     end
   end
-  return expand_table
+  return infer_table
+end
+
+
+def read_add_file(file, col_sep: "\t", comment_char: "#")
+  add_table = {}
+  CSV.open(file, "r", { :col_sep => col_sep }).each do |row|
+    if row[0][0] != comment_char
+      mondo_id = row[0]
+      mondo_id = mondo_id.to_sym
+      if !add_table.include?(mondo_id)
+        add_table[mondo_id] = [row[1].chomp.to_sym]
+      else
+        add_table[mondo_id] << row[1].chomp.to_sym
+      end
+    end
+  end
+  return add_table
 end
 
 ##########################
@@ -69,9 +86,14 @@ OptionParser.new do |opts|
     options[:output_file] = data
   end
   
-  options[:expand] = nil
-  opts.on("-m", "--expand FILE", "Expand file with HPO annotation for OMIM/Orphanet diseases") do |data|
-    options[:expand] = data
+  options[:add_file] = nil
+  opts.on("-a", "--add_file PATH", "File with direct MONDO - HPO relations to be added") do |data|
+    options[:add_file] = data
+  end
+
+  options[:infer] = nil
+  opts.on("-N", "--infer FILE", "Infer file with HPO annotation for OMIM/Orphanet diseases") do |data|
+    options[:infer] = data
   end
 
   options[:verbose] = false
@@ -84,6 +106,11 @@ OptionParser.new do |opts|
     options[:export] = true
   end
 
+  options[:expand] = false
+  opts.on("-E", "--expand", "Flag to expand by parentals using HPO") do 
+    options[:expand] = true
+  end
+
   options[:timer] = false
   opts.on("-t", "--time", "Calculates time used for main steps") do 
     options[:timer] = true
@@ -94,24 +121,24 @@ OptionParser.new do |opts|
     options[:plots] = true
   end
 
-  allowed_sims = {"resnick" => :resnick, "lin" => :lin, "jiang_conrath" => :jiang_conrath}
-  options[:similitude] = allowed_sims["resnick"]
-  opts.on("-S", "--similitude TYPE", "Specify similitude. Allowed: resnick, resnick_observed, seco, zhou, sanchez. Default: resnick") do |data|
+  allowed_sims = {"resnik" => :resnik, "lin" => :lin, "jiang_conrath" => :jiang_conrath}
+  options[:similitude] = allowed_sims["resnik"]
+  opts.on("-S", "--similitude TYPE", "Specify similitude. Allowed: resnik, resnik_observed, seco, zhou, sanchez. Default: resnik") do |data|
     sim = allowed_sims[data]
     if sim.nil?
-      warn 'Specified similitude type is not allowed. Resnick will be used'
+      warn 'Specified similitude type is not allowed. Resnik will be used'
     else
       options[:similitude] = sim
     end      
   end
 
-  allowed_ics = {"resnick" => :resnick, "resnick_observed" => :resnick_observed, 
+  allowed_ics = {"resnik" => :resnik, "resnik_observed" => :resnik_observed, 
                   "seco" => :seco, "zhou" => :zhou, "sanchez" => :sanchez}
-  options[:ic] = allowed_sims["resnick"]
-  opts.on("-I", "--ic TYPE", "Specify ic. Allowed: resnick, lin, jiang_conrath. Default: resnick") do |data|
+  options[:ic] = allowed_sims["resnik"]
+  opts.on("-I", "--ic TYPE", "Specify ic. Allowed: resnik, lin, jiang_conrath. Default: resnik") do |data|
     ic = allowed_ics[data]
     if ic.nil?
-      warn 'Specified IC type is not allowed. Resnick will be used'
+      warn 'Specified IC type is not allowed. Resnik will be used'
     else
       options[:ic] = ic
     end      
@@ -142,13 +169,15 @@ if options[:verbose]
   puts "Launch configuration:"
   puts "\tInput file :: " + options[:input_file].inspect
   puts "\tOutput path :: " + options[:output_file].inspect
-  puts "\tExpand file :: " + options[:expand].inspect
+  puts "\tInfer file :: " + options[:infer].inspect
+  puts "\tAdd file :: " + options[:add_file].inspect
   puts "\tHPO JSON file :: " + options[:hpo].inspect
   puts "\tMONDO JSON file :: " + options[:mondo].inspect
   puts "\tIC type :: " + options[:ic].inspect
   puts "\tSimilitude type :: " + options[:similitude].inspect
   puts "\tVerbose mode :: " + options[:verbose].inspect
   puts "\tExport flag :: " + options[:export].inspect
+  puts "\tExpand flag :: " + options[:expand].inspect
   puts "\tTimer flag :: " + options[:timer].inspect
 end
 
@@ -190,45 +219,64 @@ mondo_profiles = mondo_profiles.each{|mondo,hpos| mondo_profiles[mondo] = hpos.m
 puts("Obtaining MONDO profiles with HPOs ("+ mondo_profiles.length.to_s + ")") if options[:verbose] ### Verbose point
 timeflag_mondoProfiles = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
 
-# Expand MONDO profiles if proceeds
-if(!options[:expand].nil?)
-  puts("Expanding MONDO profiles by disease relations ...") if options[:verbose] ### Verbose point
+# Infer info to MONDO profiles if proceeds
+if(!options[:infer].nil?)
+  timeflag_init_infer = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+  puts("Infering new info to MONDO profiles by disease relations ...") if options[:verbose] ### Verbose point
   # Import file
-  expand_table = read_expand_file(options[:expand])
+  infer_table = read_infer_file(options[:infer])
   # Prepare disease relations
   mondo.calc_dictionary(:xref, select_regex: /(OMIMPS:[0-9]*)/, store_tag: :OMIM, multiterm: true, substitute_alternatives: false)
   mondo.calc_dictionary(:xref, select_regex: /(Orphanet:[0-9]*)/, store_tag: :Orpha, multiterm: true, substitute_alternatives: false)
   # Find
-  expandable_diseases = [mondo.dicts[:OMIM][:byValue].keys, mondo.dicts[:Orpha][:byValue].keys].flatten
-  puts("\tDiseases linked to MONDO (" + expandable_diseases.length.to_s + ")") if options[:verbose] ### Verbose point
-  expandable_diseases = expandable_diseases & expand_table.keys
+  inferable_diseases = [mondo.dicts[:OMIM][:byValue].keys, mondo.dicts[:Orpha][:byValue].keys].flatten
+  puts("\tDiseases linked to MONDO (" + inferable_diseases.length.to_s + ")") if options[:verbose] ### Verbose point
+  inferable_diseases = inferable_diseases & infer_table.keys
   # Expand
-  puts("\tDiseases linked to MONDO and HPOs (" + expandable_diseases.length.to_s + ")") if options[:verbose] ### Verbose point
+  puts("\tDiseases linked to MONDO and HPOs (" + inferable_diseases.length.to_s + ")") if options[:verbose] ### Verbose point
   mondo_profiles_ids = mondo_profiles.keys
-  expanded_profiles = [] if options[:verbose]
-  expandable_diseases.each do |disease_ID|
+  infered_profiles = [] if options[:verbose]
+  inferable_diseases.each do |disease_ID|
     query = mondo.dicts[:OMIM][:byValue][disease_ID] # OMIM
     if query.nil? # Orphanet
       query = mondo.dicts[:Orpha][:byValue][disease_ID]
     end
-    expandable_profiles = query
-    expanded_profiles << expandable_profiles if options[:verbose]
-    expandable_profiles.each do |prof|
+    inferable_profiles = query
+    infered_profiles << inferable_profiles if options[:verbose]
+    inferable_profiles.each do |prof|
       if mondo_profiles_ids.include?(prof) 
-        mondo_profiles[prof] = [mondo_profiles[prof],expand_table[disease_ID]].flatten.uniq
+        mondo_profiles[prof] = [mondo_profiles[prof],infer_table[disease_ID]].flatten.uniq
       else
-        mondo_profiles[prof] = expand_table[disease_ID]
+        mondo_profiles[prof] = infer_table[disease_ID]
         mondo_profiles_ids << prof        
       end
     end
   end
   timeflag_mondoExpanded = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
   if options[:verbose]
-    expanded_profiles = expanded_profiles.flatten.uniq
-    new_profiles = expanded_profiles - mondo.dicts[:HP][:byTerm].keys
-    puts "\tNew profiles (" + new_profiles.length.to_s + "). Expansion process affected profiles (" + expanded_profiles.length.to_s + "/" + mondo_profiles.length.to_s + ")"
+    infered_profiles = infered_profiles.flatten.uniq
+    new_profiles = infered_profiles - mondo.dicts[:HP][:byTerm].keys
+    puts "\tNew profiles (" + new_profiles.length.to_s + "). Inferation process affected profiles (" + infered_profiles.length.to_s + "/" + mondo_profiles.length.to_s + ")"
   end
+  timeflag_end_infer = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
 end
+
+# Add direct MONDO profiles
+if !options[:add_file].nil?
+  timeflag_init_add = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+  # Load
+  add_table = read_add_file(options[:add_file])
+  add_table.select!{|k,v| mondo.exists?(k)}
+  puts("Adding MONDO relations by external file. A total of (" + add_table.length.inspect + ") profiles with external info are available") if options[:verbose] ### Verbose point
+  new_items = add_table.select{|k,v| !mondo_profiles.keys.include?(k)}
+  updatable_items = add_table.select{|k,v| mondo_profiles.keys.include?(k)}
+  # Update
+  mondo_profiles.merge!(new_items) if new_items.length > 0
+  updatable_items.each{|k,v| mondo_profiles[k] = (mondo_profiles[k] + v).flatten.uniq} if updatable_items.length > 0
+  puts("Adding process has added (" + new_items.length.inspect + ") new MONDOs and has updated ("+ updatable_items.length.inspect + ") profiles") if options[:verbose] ### Verbose point
+  timeflag_end_add = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+end
+
 
 # Clean MONDO profiles
 mondo_profiles_ids = mondo_profiles.keys
@@ -249,6 +297,18 @@ puts "Cleaning MONDO profiles process has left (" + mondo_profiles.length.to_s +
 # Store
 mondo.load_item_relations_to_terms(mondo_profiles, true)
 
+# Expand by parentals
+if options[:expand]
+  timeflag_init_expand = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+  old_length = mondo.items.length
+  puts "Expanding items to parentals" if options[:verbose]
+  mondo.expand_items_to_parentals(ontology: hpo)
+  if mondo.items.length > old_length && options[:verbose]
+    puts "New parentals without previous relations have been added (" + (mondo.items.length - old_length).inspect + ")"
+  end
+  timeflag_end_expand = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:timer] # TIME FLAG
+end
+
 # Compare
 puts("Comparing patients against MONDO profiles. It can take a while ...") if options[:verbose] ### Verbose point
 sims = hpo.compare_profiles(external_profiles: mondo_profiles, sim_type: options[:similitude], ic_type: options[:ic], bidirectional: false, against_external: true) # Compare patients agains MONDO
@@ -257,6 +317,8 @@ timeflag_sims = Process.clock_gettime(Process::CLOCK_MONOTONIC) if options[:time
 # Export
 puts("Exporting results") if options[:verbose] ### Verbose point
 sim_pairs_basename = "sim_pairs_ic"+ options[:ic].to_s + "_sim" + options[:similitude].to_s
+sim_pairs_basename += "_added" if options[:add_file]
+sim_pairs_basename += "_inferred" if options[:infer]
 sim_pairs_basename += "_expanded" if options[:expand]
 sim_pairs_file = File.join(options[:output_file],sim_pairs_basename)
 sims_pairs = write_profile_pairs(sims, sim_pairs_file)
@@ -279,12 +341,10 @@ if options[:timer]
   times[:loadOntologies] = timeflag_ontologyLoaded - timeflag_init
   times[:patientsLoadAndClean] = timeflag_patientsLoaded - timeflag_ontologyLoaded 
   times[:mondoProfilesCalc] = timeflag_mondoProfiles - timeflag_patientsLoaded
-  if !options[:expand].nil?
-    times[:mondoExpansion] = timeflag_mondoExpanded - timeflag_mondoProfiles
-    times[:mondoCleaning] = timeflag_mondoCleaned - timeflag_mondoExpanded
-  else
-    times[:mondoCleaning] = timeflag_mondoCleaned - timeflag_mondoProfiles
-  end
+  times[:mondoAdd] = timeflag_end_add - timeflag_init_add if !options[:add_file].nil?
+  times[:mondoInfer] = timeflag_end_infer - timeflag_init_infer if !options[:infer].nil?
+  times[:mondoExpansion] = timeflag_end_expand - timeflag_init_expand if options[:expand]
+  times[:mondoCleaning] = timeflag_mondoCleaned - timeflag_mondoProfiles
   times[:simCalc] = timeflag_sims - timeflag_mondoCleaned
   times[:export] = timeflag_export - timeflag_sims
   times[:plots] = timeflag_render - timeflag_export if options[:plots]
