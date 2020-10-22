@@ -432,11 +432,9 @@ def parse_clusters_file(clusters_file, patient_profiles)
   end
   clusters_info.each do |clusterID, patients_info|
     patients_per_cluster = patients_info.keys.length
-    #hpo_names = patients_info.values.map{|id| translate_id(id)} 
-    #STDERR.puts hpo_names.inspect
     clusters_table << [clusterID, patients_per_cluster, patients_info.keys, patients_info.values]
   end
-  return clusters_table
+  return clusters_table, clusters_info
 end
 
 def get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
@@ -451,4 +449,26 @@ def get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
       f.puts "#{hpo_code.to_s}\t#{freq}"
     end
   end
+end
+
+def get_cluster_metadata(clusters_info, output_file)
+  distribution_average_phenotypes_by_patients_cluster = []
+  tmp = []
+  total_clusters = clusters_info.keys.length
+  average_patients_per_cluster = clusters_info.values.map{|a| a.keys.length}.inject(0){|i, sum| i + sum}.fdiv(total_clusters)
+  clusters_info.values.each do |i|
+      patients_by_cluster = i.keys.length
+      num_phenotypes_in_cluster_by_patients_ary = i.values.map{|a| a.length}
+      num_phenotypes_in_cluster_by_patients_ave = num_phenotypes_in_cluster_by_patients_ary.sum.fdiv(num_phenotypes_in_cluster_by_patients_ary.length)
+      distribution_average_phenotypes_by_patients_cluster << [patients_by_cluster, num_phenotypes_in_cluster_by_patients_ave]
+      tmp << num_phenotypes_in_cluster_by_patients_ary
+  end
+  average_phenotypes_by_cluster = tmp.flatten.sum.fdiv(total_clusters)
+  File.open(output_file, 'w') do |f|
+    f.puts "#{'PatientsNumber'}\t#{'HPOAverage'}"
+    distribution_average_phenotypes_by_patients_cluster.each do |patient_num, ave|
+      f.puts "#{patient_num}\t#{ave}"
+    end
+  end
+  #return distribution_average_phenotypes_by_patients_cluster
 end
