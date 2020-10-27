@@ -124,6 +124,11 @@ OptionParser.new do |opts|
     options[:input_file] = data
   end
 
+  options[:clustering_methods] = ['resnik', 'jiang_conrath', 'lin']
+  opts.on("-m", "--clustering_methods ARRAY", "Clustering methods") do |data|
+    options[:clustering_methods] = data.to_a
+  end
+
   options[:hpo_names] = false
   opts.on("-n", "--hpo_names", "Define if the input HPO are human readable names. Default false") do
     options[:hpo_names] = true
@@ -183,13 +188,6 @@ cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
 cluster_chromosome_data_file = File.join(temp_folder, 'cluster_chromosome_data.txt')
 coverage_to_plot_file = File.join(temp_folder, 'coverage_data.txt')
 sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
-similarity_matrix_resnik_file = File.join(temp_folder, 'similarity_matrix_resnik.txt')
-similarity_matrix_lin_file = File.join(temp_folder, 'similarity_matrix_lin.txt')
-similarity_matrix_jiang_file = File.join(temp_folder, 'similarity_matrix_jiang.txt')
-profiles_similarity_resnik_file = File.join(temp_folder, 'profiles_similarity_resnik.txt')
-jiang_clusters_distribution_file = File.join(temp_folder, 'jiang_clusters_distribution.txt')
-resnik_clusters_distribution_file = File.join(temp_folder, 'resnik_clusters_distribution.txt')
-lin_clusters_distribution_file = File.join(temp_folder, 'lin_clusters_distribution.txt')
 
 # cnvs_lenght_to_plot_file = File.join(temp_folder, 'cnvs_lenght.txt')
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
@@ -209,24 +207,11 @@ else
   hpo = Ontology.new(file: hpo_file, load_file: true)
 end
 
-#hash_keys
 patient_data = load_patient_cohort(options)
 
 cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
 patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
 hpo.load_profiles(patient_uniq_profiles)
-
-profiles_similarity_resnik = hpo.compare_profiles
-profiles_similarity_lin = hpo.compare_profiles(sim_type: :lin)
-profiles_similarity_jiang = hpo.compare_profiles(sim_type: :jiang_conrath)
-
-resnik_profile_pairs = write_profile_pairs(profiles_similarity_resnik, profiles_similarity_resnik_file)
-
-
-similarity_matrix_resnik = format_profiles_similarity_data(profiles_similarity_resnik)
-similarity_matrix_lin = format_profiles_similarity_data(profiles_similarity_lin)
-similarity_matrix_jiang = format_profiles_similarity_data(profiles_similarity_jiang)
-
 
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
@@ -247,8 +232,6 @@ freq_ic_profile = freq_ic_profile.values
 clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 
 all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, options[:pat_id_col])
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
-
-
 
 summary_stats = get_summary_stats(patient_data, cohort_hpos, hpo)
 summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]
@@ -310,20 +293,13 @@ write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluat
 write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 'FreqIC')
 write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file, 'OntoIC', 'FreqIC')
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
-write_similarity_matrix(similarity_matrix_resnik, similarity_matrix_resnik_file)
-write_similarity_matrix(similarity_matrix_lin, similarity_matrix_lin_file)
-write_similarity_matrix(similarity_matrix_jiang, similarity_matrix_jiang_file)
+
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
 
 ###Cohort frequency calculation
 system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{File.join(temp_folder, 'hpo_freq_colour')} -O #{hpo_file}") 
-
-###PLOTTING HEATMAPS
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_resnik_file} -o #{File.join(temp_folder, 'resnik')} -m max -H") 
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_lin_file} -o #{File.join(temp_folder, 'lin')} -m comp1 -H")    
-system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{similarity_matrix_jiang_file} -o #{File.join(temp_folder, 'jiang')} -H")
 
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
 system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
@@ -341,6 +317,45 @@ if !options[:chromosome_col].nil?
     system("#{File.join(EXTERNAL_CODE, 'plot_area.R')} -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t SOR")    
   end
 end
+
+#----------------------------------
+# CLUSTER COHORT ANALYZER REPORT
+#----------------------------------
+
+options[:clustering_methods].each do |method_name|
+  matrix_filename = File.join(temp_folder, ['similarity_matrix', method_name].join('_').concat('.txt'))
+  profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
+  clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
+  profiles_similarity = hpo.compare_profiles(sim_type: method_name.to_sym)
+  profile_pairs = write_profile_pairs(profiles_similarity, profiles_similarity_filename)
+  similarity_matrix = format_profiles_similarity_data(profiles_similarity)
+  write_similarity_matrix(similarity_matrix, matrix_filename)
+  ext_var = ''
+  if method_name == 'resnik'
+    ext_var = '-m max'
+  elsif method_name == 'lin'
+    ext_var = '-m comp1'
+  end
+  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{matrix_filename} -o #{File.join(temp_folder, method_name)} -H #{ext_var}")
+  clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_uniq_profiles)
+  get_cluster_metadata(clusters_info, clusters_distribution_filename)
+  system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{clusters_distribution_filename} -o #{File.join(temp_folder, ['clusters_distribution', method_name].join('_'))} -x PatientsNumber -y HPOAverage")
+  clusters = translate_codes(clusters_codes, hpo)
+  
+  container = {
+    :temp_folder => temp_folder,
+    :cluster_name => method_name,
+    :clusters => clusters,
+    :hpo => hpo
+   }
+
+  template = File.open(File.join(REPORT_FOLDER, 'cluster_report.erb')).read
+  report = Report_html.new(container, 'Patient clusters report')
+  report.build(template)
+  report.write(options[:output_file]+"_#{method_name}_clusters.html")
+end
+
+
 #----------------------------------
 # GENERAL COHORT ANALYZER REPORT
 #----------------------------------
@@ -358,6 +373,7 @@ top_cluster_phenotypes.each_with_index do |cluster, clusterID|
   phenotypes_frequency = Hash.new(0)
 end
 
+
 container = {
   :temp_folder => temp_folder,
   # :top_cluster_phenotypes => top_cluster_phenotypes.length,
@@ -367,15 +383,8 @@ container = {
   :all_sor_length => all_sor_length,
   :new_cluster_phenotypes => new_cluster_phenotypes.keys.length,
   :ontology_levels => ontology_levels,
-  :distribution_percentage => distribution_percentage,
-  :similarity_matrix_resnik => similarity_matrix_resnik,
-  :similarity_matrix_lin => similarity_matrix_lin,
-  :similarity_matrix_jiang => similarity_matrix_jiang
- }
-# top_cluster_phenotypes.each_with_index do |cluster, i|
-#   clust_pr = cluster.map{|pr| [pr.join(', ')] }
-#   container["clust_#{i}"] = clust_pr
-# end
+  :distribution_percentage => distribution_percentage
+}
 
 clust_info = []
 new_cluster_phenotypes.each do |clusterID, info|
@@ -390,39 +399,3 @@ template = File.open(File.join(REPORT_FOLDER, 'cohort_report.erb')).read
 report = Report_html.new(container, 'Cohort quality report')
 report.build(template)
 report.write(options[:output_file]+'.html')
-
-#----------------------------------
-# CLUSTER COHORT ANALYZER REPORT
-#----------------------------------
-
-#jiang_clusters = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
-jiang_clusters_codes, jiang_clusters_info = parse_clusters_file(File.join(temp_folder, 'jiang_clusters.txt'), patient_uniq_profiles)
-get_cluster_metadata(jiang_clusters_info, jiang_clusters_distribution_file)
-system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{jiang_clusters_distribution_file} -o #{File.join(temp_folder, 'jiang_clusters_distribution')} -x PatientsNumber -y HPOAverage")
-jiang_clusters = translate_codes(jiang_clusters_codes, hpo)
-
-
-#resnik_clusters = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
-resnik_clusters_codes, resnik_clusters_info = parse_clusters_file(File.join(temp_folder, 'resnik_clusters.txt'), patient_uniq_profiles)
-get_cluster_metadata(resnik_clusters_info, resnik_clusters_distribution_file)
-system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{resnik_clusters_distribution_file} -o #{File.join(temp_folder, 'resnik_clusters_distribution')} -x PatientsNumber -y HPOAverage")
-resnik_clusters = translate_codes(resnik_clusters_codes, hpo)
-
-#lin_clusters = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
-lin_clusters_codes, lin_clusters_info = parse_clusters_file(File.join(temp_folder, 'lin_clusters.txt'), patient_uniq_profiles)
-get_cluster_metadata(lin_clusters_info, lin_clusters_distribution_file)
-system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{lin_clusters_distribution_file} -o #{File.join(temp_folder, 'lin_clusters_distribution')} -x PatientsNumber -y HPOAverage")
-lin_clusters = translate_codes(lin_clusters_codes, hpo)
-
-container = {
-  :temp_folder => temp_folder,
-  :jiang_clusters => jiang_clusters,
-  :resnik_clusters => resnik_clusters,
-  :lin_clusters => lin_clusters,
-  :hpo => hpo
- }
-
-template = File.open(File.join(REPORT_FOLDER, 'cluster_report.erb')).read
-report = Report_html.new(container, 'Patient clusters report')
-report.build(template)
-report.write(options[:output_file]+'_clusters.html')
