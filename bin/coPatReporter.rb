@@ -126,7 +126,7 @@ OptionParser.new do |opts|
 
   options[:clustering_methods] = ['resnik', 'jiang_conrath', 'lin']
   opts.on("-m", "--clustering_methods ARRAY", "Clustering methods") do |data|
-    options[:clustering_methods] = data.to_a
+    options[:clustering_methods] = data.split(',')
   end
 
   options[:hpo_names] = false
@@ -378,6 +378,7 @@ container = {
   :temp_folder => temp_folder,
   # :top_cluster_phenotypes => top_cluster_phenotypes.length,
   :summary_stats => summary_stats,
+  :clustering_methods => options[:clustering_methods],
   :hpo_stats => hpo_stats,
   :all_cnvs_length => all_cnvs_length,
   :all_sor_length => all_sor_length,
