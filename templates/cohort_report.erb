@@ -157,11 +157,15 @@
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Patient profiles heatmaps</h1>
-	<p> For each patient, their HPO profile similarity coefficient is calculated according to different methods (Resnik, Lin and Jiang methods) and represented in these heatmaps. </p>
-	<p> Resnik </p>
-	<%= embed_pdf(File.join(@hash_vars[:temp_folder],'resnik_heatmap.pdf'), 'width="800" height="800"') %>
-	<p> Lin </p>
-	<%= embed_pdf(File.join(@hash_vars[:temp_folder],'lin_heatmap.pdf'), 'width="800" height="800"') %>
-	<p> Jiang (Note: this method generates dissimilarity values) </p>
-	<%= embed_pdf(File.join(@hash_vars[:temp_folder],'jiang_heatmap.pdf'), 'width="800" height="800"') %>
+	<p> For each patient, their HPO profile similarity coefficient is calculated according to the different methods specified in the analysis and represented in these heatmaps. </p>
+	<% 
+		@hash_vars[:clustering_methods].each do |clust_method|
+			plot = File.join(@hash_vars[:temp_folder], "#{clust_method}_heatmap.pdf")
+			if File.exists?(plot) %>
+				<%= embed_pdf(plot, 'width="800" height="800"') %>
+			<% else
+				puts 'File not found or method not specified.'
+			end
+		end
+	%>
 </div>

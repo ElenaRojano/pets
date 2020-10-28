@@ -13,7 +13,7 @@
 	<h1 style="text-align: center; background-color:#d6eaf8">Average of patients by HPO profile average in clusters</h1>
 	<p> Distribution of patients in clusters based on the average of phenotypes by profile. </p>
 	<%= 
-		plot = File.join(@hash_vars[:temp_folder],'jiang_clusters_distribution.pdf')
+		plot = File.join(@hash_vars[:temp_folder], "clusters_distribution_#{@hash_vars[:cluster_name]}.pdf")
 		if File.exists?(plot)
 			embed_pdf(plot, 'width="800" height="800"') 
 		else
@@ -24,7 +24,7 @@
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Patient HPO profiles by cluster.</h1>
-		<%= table(id: :jiang_clusters, header: true, border: 2, row_names: false, text: true, 
+		<%= table(id: :clusters, header: true, border: 2, row_names: false, text: true, 
 			cell_align: %w( center )) do |data|
 				data.each do |element|
 					#STDERR.puts element.inspect
