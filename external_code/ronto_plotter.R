@@ -47,53 +47,59 @@ sparseLevelItems <- function(levels){
 }
 
 
-findPaths <- function(ontology, verbose = FALSE){
-  calculated_paths <- list()
-  appfun <- ifelse(verbose,pblapply,lapply)
-  invisible(appfun(ontology$id,function(id){
-    if(!id %in% names(calculated_paths)){
-      paths <- findPath(id,ontology)
-      calculated_paths[id] <<- paths
-      # Add already expanded terms
-    }
-  }))
-  return(calculated_paths)
-}
-
-
-findShortestPath <- function(term,ontology,calculated_paths = NULL){
-  # Check
-  if(!is.null(calculated_paths)){
-    if(term %in% names(calculated_paths)){
-      return(min(unlist(lapply(calculated_paths[term],length)))-1)
-    }
-  }
-
-  paths <- findPath(term,ontology)
-  return(min(unlist(lapply(paths,length)))-1)
-}
-
-findPath <- function(term,ontology,calculated_paths = NULL){
-  # Check
-  if(!is.null(calculated_paths)){
-    if(term %in% names(calculated_paths)){
-      return(calculated_paths[term])
-    }
-  }
-  # Take parentals
-  parents <- ontology$parents[term]
-  # Expand if possible
-  if(length(parents) > 0){
-    expansion <- lapply(parents,function(p){findPath(p,ontology)})
+calc_paths <- function(ontology, ids = NULL){
+  # Initialize
+  visited_terms <- c()
+  paths <- list()
+  if(is.null(ids)){
+    ids <- as.vector(ontology$id)
   }else{
-    expansion <- list() 
+    ids <- as.vector(ids)
   }
-  # Concat expansions
-  expansion_updated <- lapply(expansion,function(ex){append(term,ex)})
-  # Return
-  return(expansion_updated)
+  env <- environment()
+  for(id in ids){
+    if(!id %in% visited_terms){ # Only if it's not visited
+      paths[[id]] <- list(ID = id, NPaths = 0, ShortestPath = 0, Paths = list())
+      direct_ancestors <- ontology$parents[[id]]
+      if(length(direct_ancestors) <= 0){
+        paths[[id]]$Paths <- append(paths[[id]]$Paths, list(c(id)))
+      }else{
+        invisible(lapply(direct_ancestors,function(anc){
+          if(!anc %in% visited_terms){
+            calc_path(anc,ontology,env)
+          }
+          paths[[id]]$Paths <<- append(paths[[id]]$Paths, lapply(paths[[anc]]$Paths,function(path){c(id,unlist(path))}))
+          visited_terms <<- c(visited_terms,anc)
+        }))
+      }
+      visited_terms <- c(visited_terms,id)
+    }
+    # Calc metadata
+    paths[[id]]$NPaths <- length(paths[[id]]$Paths)
+    paths[[id]]$ShortestPath <- min(unlist(lapply(paths[[id]]$Paths,function(path){length(unlist(path))})))
+  }
+  return(paths)
 }
 
+
+calc_path <- function(id, ontology, env){
+  if(!id %in% env$visited_terms){
+    env$paths[[id]] <- list(ID = id, NPaths = 0, ShortestPath = 0, Paths = list())
+    direct_ancestors <- ontology$parents[[id]]
+    if(length(direct_ancestors) <= 0){
+      env$paths[[id]]$Paths <- append(env$paths[[id]]$Paths, list(c(id)))
+    }else{
+      invisible(lapply(direct_ancestors,function(anc){
+        if(!anc %in% env$visited_terms){
+          calc_path(anc,ontology,env)
+        }
+        env$paths[[id]]$Paths <- append(env$paths[[id]]$Paths, lapply(env$paths[[anc]]$Paths,function(path){c(id,unlist(path))}))
+        env$visited_terms <- c(env$visited_terms,anc)
+      }))
+    }
+    env$visited_terms <- c(env$visited_terms,id)
+  }
+}
 
 ############################################################
 ##                           MAIN                         ##
@@ -133,10 +139,9 @@ invisible(apply_fun(setdiff(topopulate,unique(df$Term)),function(id){
 if(opt$verbose) message("Calculating levels ...") # Verbose point
 
 # Obtain levels
-# paths <- findPaths(onto,verbose = opt$verbose)
-# levels <- apply_fun(onto$id,function(id){findShortestPath(id,onto,paths)})
-levels <- apply_fun(onto$id,function(id){length(get_ancestors(onto,id)) - 1})
-names(levels) <- onto$id
+uniqterms <- unique(df$Term)
+paths <- calc_paths(onto, uniqterms)
+levels <- lapply(paths,function(path){path$ShortestPath})
 
 # Sort by code to be (always) the same
 df <- df[order(df$Term),]
@@ -156,8 +161,8 @@ if("Size" %in% colnames(df)){
 }
 
 pp = ggplot() + 
-      geom_point(data = df[df$Type == "Added",],mapping = aes(x = LevelD, y = Radians), alpha = 0.3, size = 0.7) + 
-      geom_point(data = df[df$Type == "Raw",],mapping = aes_aux, alpha = 0.6) + 
+      geom_point(data = df[df$Type == "Added",],mapping = aes(x = LevelD, y = Radians), alpha = 0.3, size = 0.8) + 
+      geom_point(data = df[df$Type == "Raw",],mapping = aes_aux, alpha = 0.7) + 
       scale_colour_gradient(low = "orange", high = "red") + 
       scale_x_discrete("LevelD") + 
       ylim(c(0,2*pi)) +
