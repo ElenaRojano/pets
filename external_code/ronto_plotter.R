@@ -26,7 +26,7 @@ option_list <- list(
   make_option(c("-e", "--expand_wl"), type="logical", default=FALSE, action = "store_true",
     help="Flag to indicate that white list must be expanded using input terms and their parentals"),
   make_option(c("-v", "--verbose"), type="logical", default=FALSE, action = "store_true",
-    help="Input file to be loaded")
+    help="Activate verbose mode")
 )
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -110,6 +110,8 @@ if(opt$verbose){ # Verbose point
   message("Loading input file")
   apply_fun <- pblapply
   pboptions(type="txt")
+  ltimes <- list()
+  ltimes$init <- Sys.time()
 } 
 
 # Load data
@@ -117,12 +119,19 @@ df <- read.table(file = opt$input_file, sep = "\t", stringsAsFactors = FALSE, he
 cnames <- c("Term","Color","Size")
 colnames(df) <- cnames[1:ncol(df)]
 
-if(opt$verbose) message("Loading ontology") # Verbose point
+if(opt$verbose){
+  ltimes$load_init <- Sys.time()
+  message("Loading ontology ...") # Verbose point
+}
 
 # Load ontology
 onto <- get_ontology(file = opt$ontology)
 
-if(opt$verbose) message("Populating with all available terms") # Verbose point
+if(opt$verbose){
+  ltimes$populate_init <- Sys.time()
+  message(paste0("\tElapsed : ",round(as.numeric(ltimes$populate_init) - as.numeric(ltimes$load_init),2)," s"))
+  message("Populating with all available terms ...") # Verbose point
+}
 
 # Populate input df with all allowed terms
 df$Type <- rep("Raw",nrow(df))
@@ -132,11 +141,19 @@ if(!is.null(opt$white_list)){ # Populate with white list
   if(opt$expand_wl) wl <- unique(c(wl,df$Term))
   topopulate <- unique(unlist(lapply(wl,function(item){get_ancestors(onto,item)})))
 }
-invisible(apply_fun(setdiff(topopulate,unique(df$Term)),function(id){
-  df <<- rbind(df, as.list(c(id, rep(0, ncol(df)-2), "Added")))
-}))  
 
-if(opt$verbose) message("Calculating levels ...") # Verbose point
+aux_df <- as.data.frame(do.call(rbind,apply_fun(setdiff(topopulate,unique(df$Term)),function(id){
+  return(t(as.data.frame(c(id, rep(0, ncol(df)-2), "Added"))))
+})))
+rownames(aux_df) <- NULL
+colnames(aux_df) <- colnames(df)
+df <- rbind(df, aux_df)
+
+if(opt$verbose){
+  ltimes$levels_init <- Sys.time()
+  message(paste0("\tElapsed : ",round(as.numeric(ltimes$levels_init) - as.numeric(ltimes$populate_init),2)," s"))
+  message("Calculating levels ...") # Verbose point
+}
 
 # Obtain levels
 uniqterms <- unique(df$Term)
@@ -152,7 +169,11 @@ df$Radians <- sparseLevelItems(df$Level)
 df$LevelD <- factor(as.character(df$Level), levels = as.character(c(0,seq(max(df$Level)))))
 df$Color <- as.numeric(df$Color)
 
-if(opt$verbose) message("Generating plot") # Verbose point
+if(opt$verbose){
+  ltimes$plot_init <- Sys.time()
+  message(paste0("\tElapsed : ",round(as.numeric(ltimes$plot_init) - as.numeric(ltimes$levels_init),2)," s"))
+  message("Generating plot") # Verbose point
+}
 
 if("Size" %in% colnames(df)){
   aes_aux <- aes(x = LevelD, y = Radians, color = Color, size = Size)
@@ -168,12 +189,20 @@ pp = ggplot() +
       ylim(c(0,2*pi)) +
       coord_polar(theta = "y")
 
-if(opt$verbose) message("Rendering plot ...") # Verbose point
+if(opt$verbose){
+  ltimes$render_plot <- Sys.time()
+  message(paste0("\tElapsed : ",round(as.numeric(ltimes$render_plot) - as.numeric(ltimes$plot_init),2)," s"))
+  message("Rendering plot ...") # Verbose point
+}
 
 siz <- 1000
 png(paste0(opt$output_file,".png"), height = siz, width = siz)
 plot(pp)
 dev.off()
 
-if(opt$verbose) message("Program finish") # Verbose point
+if(opt$verbose){
+  ltimes$end <- Sys.time()
+  message(paste0("\tElapsed : ",round(as.numeric(ltimes$end) - as.numeric(ltimes$render_plot),2)," s"))
+  message(paste0("Program finished. Elapsed : ",round(as.numeric(ltimes$end) - as.numeric(ltimes$init),2)," s"))
+}
 
