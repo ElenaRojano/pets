@@ -1,5 +1,6 @@
 #! /usr/bin/env Rscript
 
+library(RcppCNPy)
 library(optparse)
 library(gplots)
 library("RColorBrewer")
@@ -44,6 +45,8 @@ option_list <- list(
 		help="Indicates that file has header"),
 	make_option(c("-p", "--pairs"), type="logical", default=FALSE, action="store_true",
 		help="Indicates if input file is a pairs-file instead a matrix"),
+	make_option(c("-y", "--npy"), type="character", default=NULL,
+		help="Indicates that input file is a numpy matrix and the given PATH is a file with axis labels"),
 	make_option(c("-o", "--output"), type="character", default="output",
 		help="Output figure file"),
 	make_option(c("-s", "--same_sets"), type="logical", default=TRUE, action = "store_false",
@@ -84,9 +87,15 @@ if(opt$pairs){ # Load pairs
 		data[as.character(data_raw$SetA[i]),as.character(data_raw$SetB[i])] <<- data_raw$Value[i]
 	}))	
 }else{ # Load matrix
-	data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names="pat"))
+	if(!is.null(opt$npy)){
+		axis_labels <- read.table(opt$npy, header=FALSE, stringsAsFactors=FALSE)
+		data <- npyLoad(opt$data_file)
+		colnames(data) <- axis_labels$V1
+		rownames(data) <- axis_labels$V1
+	}else{
+		data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names="pat"))
+	}
 }
-
 
 ######### NORMALIZE
 if(is.null(opt$matrix_transformation)){

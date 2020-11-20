@@ -1,3 +1,5 @@
+require 'numo/narray'
+
 HPOS = 0
 CHR = 1
 START = 2
@@ -396,6 +398,46 @@ def format_profiles_similarity_data(profiles_similarity)
   end
   matrix[0].unshift('pat')
   return matrix
+end
+
+def format_profiles_similarity_data_pairs(profiles_similarity)
+  pairs = []
+  element_names = profiles_similarity.keys
+  profiles_similarity.each do |elementA, relations|
+    element_names.each do |elementB|
+      if elementA != elementB
+        pair = [elementA, elementB]
+        query = relations[elementB]
+        if !query.nil?
+          pair << query
+        else
+          pair << profiles_similarity[elementB][elementA]
+        end
+        pairs << pair
+      end
+    end
+  end
+  return pairs
+end
+
+def format_profiles_similarity_data_numo(profiles_similarity)
+  element_names = profiles_similarity.keys
+  matrix = Numo::DFloat.zeros(element_names.length, element_names.length)
+  i = 0
+  profiles_similarity.each do |elementA, relations|
+    element_names.each_with_index do |elementB, j|
+      if elementA != elementB
+        query = relations[elementB]
+        if !query.nil?
+          matrix[i, j] = query
+        else
+          matrix[i, j] = profiles_similarity[elementB][elementA]
+        end
+      end
+    end
+    i += 1
+  end
+  return matrix, element_names
 end
 
 def write_similarity_matrix(similarity_matrix, similarity_matrix_file)  

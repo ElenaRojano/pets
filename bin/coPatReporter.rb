@@ -4,7 +4,7 @@ ROOT_PATH = File.dirname(__FILE__)
 REPORT_FOLDER = File.expand_path(File.join(ROOT_PATH, '..', 'templates'))
 EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))
-HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
+HPO_FILE = File.join(EXTERNAL_DATA, 'hp.json')
 IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
 CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
@@ -13,6 +13,7 @@ require 'benchmark'
 require 'parallel'
 require 'optparse'
 require 'csv'
+require 'npy'
 require 'generalMethods.rb'
 require 'coPatReporterMethods.rb'
 require 'report_html'
@@ -201,15 +202,24 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
   hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
-
 #Benchmark.bm() do |x|
   hpo = nil
 #  x.report("load hpo:"){
+  if !hpo_file.include?('.json')
     if !options[:excluded_hpo].nil?
       hpo = Ontology.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(options[:excluded_hpo]))
     else
       hpo = Ontology.new(file: hpo_file, load_file: true)
     end
+  else
+    hpo = Ontology.new
+    hpo.read(hpo_file)
+    if !options[:excluded_hpo].nil?
+      hpo.add_removable_terms(read_excluded_hpo_file(options[:excluded_hpo]))
+      hpo.remove_removable()
+      hpo.build_index()
+    end
+  end
 #  }
 
   patient_data = load_patient_cohort(options)
@@ -311,7 +321,7 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   ###Cohort frequency calculation
   #x.report("ronto:"){
     ronto_file = File.join(temp_folder, 'hpo_freq_colour')
-    system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{} -O #{hpo_file}") if !File.exist?(ronto_file + '.png')
+    system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
   #}
 
   write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
@@ -334,21 +344,23 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   #----------------------------------
   # CLUSTER COHORT ANALYZER REPORT
   #----------------------------------
-  Parallel.each(options[:clustering_methods]) do |method_name|
-    matrix_filename = File.join(temp_folder, ['similarity_matrix', method_name].join('_').concat('.txt'))
+  Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do |method_name|
+    matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.txt")
     profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
     clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
     profiles_similarity = hpo.compare_profiles(sim_type: method_name.to_sym)
     profile_pairs = write_profile_pairs(profiles_similarity, profiles_similarity_filename)
-    similarity_matrix = format_profiles_similarity_data(profiles_similarity)
-    write_similarity_matrix(similarity_matrix, matrix_filename)
+    similarity_matrix, axis_names = format_profiles_similarity_data_numo(profiles_similarity)
+    axis_file = matrix_filename.gsub('.txt','.lst')
+    File.open(axis_file, 'w'){|f| f.print axis_names.join("\n") }
+    Npy.save(matrix_filename, similarity_matrix)
     ext_var = ''
     if method_name == 'resnik'
       ext_var = '-m max'
     elsif method_name == 'lin'
       ext_var = '-m comp1'
     end
-    system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -d #{matrix_filename} -o #{File.join(temp_folder, method_name)} -H #{ext_var}")
+    system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -y #{axis_file} -d #{matrix_filename} -o #{File.join(temp_folder, method_name)} -H #{ext_var}")
     clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_uniq_profiles)
     get_cluster_metadata(clusters_info, clusters_distribution_filename)
     system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{clusters_distribution_filename} -o #{File.join(temp_folder, ['clusters_distribution', method_name].join('_'))} -x PatientsNumber -y HPOAverage")
