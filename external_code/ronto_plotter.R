@@ -58,21 +58,21 @@ calc_paths <- function(ontology, ids = NULL){
   }
   env <- environment()
   for(id in ids){
-    if(!id %in% visited_terms){ # Only if it's not visited
+    if(!id %in% env$visited_terms){ # Only if it's not visited
       paths[[id]] <- list(ID = id, NPaths = 0, ShortestPath = 0, Paths = list())
       direct_ancestors <- ontology$parents[[id]]
       if(length(direct_ancestors) <= 0){
         paths[[id]]$Paths <- append(paths[[id]]$Paths, list(c(id)))
       }else{
         invisible(lapply(direct_ancestors,function(anc){
-          if(!anc %in% visited_terms){
+          if(!anc %in% env$visited_terms){
             calc_path(anc,ontology,env)
           }
           paths[[id]]$Paths <<- append(paths[[id]]$Paths, lapply(paths[[anc]]$Paths,function(path){c(id,unlist(path))}))
-          visited_terms <<- c(visited_terms,anc)
+          env$visited_terms <- c(env$visited_terms,anc)
         }))
       }
-      visited_terms <- c(visited_terms,id)
+      env$visited_terms <- c(env$visited_terms,id)
     }
     # Calc metadata
     paths[[id]]$NPaths <- length(paths[[id]]$Paths)
@@ -135,7 +135,7 @@ if(opt$verbose){
 
 # Populate input df with all allowed terms
 df$Type <- rep("Raw",nrow(df))
-topopulate <- onto$id
+topopulate <- onto$id[!onto$obsolete]
 if(!is.null(opt$white_list)){ # Populate with white list
   wl <- read.table(file = opt$white_list, sep = "\t", stringsAsFactors = FALSE, header = FALSE)[,1]
   if(opt$expand_wl) wl <- unique(c(wl,df$Term))
@@ -155,8 +155,12 @@ if(opt$verbose){
   message("Calculating levels ...") # Verbose point
 }
 
-# Obtain levels
+# Prepare terms
 uniqterms <- unique(df$Term)
+aux_anc <- unlist(lapply(uniqterms,function(term){length(onto$ancestors[[term]])}))
+names(aux_anc) <- uniqterms
+aux_anc <- names(sort(aux_anc, decreasing = T))
+# Obtain levels
 paths <- calc_paths(onto, uniqterms)
 levels <- lapply(paths,function(path){path$ShortestPath})
 
