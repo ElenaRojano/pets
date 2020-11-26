@@ -186,6 +186,7 @@ end.parse!
 ##########################
 output_folder = File.dirname(options[:output_file])
 detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profile_evaluation.csv')
+rejected_file = File.join(output_folder, 'rejected_records.txt')
 temp_folder = File.join(output_folder, 'temp')
 matrix_file = File.join(temp_folder, 'pat_hpo_matrix.txt')
 hpo_ic_file = File.join(temp_folder, 'hpo_ic.txt')
@@ -224,7 +225,9 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
 
   patient_data = load_patient_cohort(options)
 
-  cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs = format_patient_data(patient_data, options, hpo)
+  cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs, rejected_patients = format_patient_data(patient_data, options, hpo)
+  File.open(rejected_file, 'w'){|f| f.puts rejected_patients.join("\n")}
+  patient_data.select!{|pat_id, patient_record| !rejected_patients.include?(pat_id)}
   patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
   hpo.load_profiles(patient_uniq_profiles)
 

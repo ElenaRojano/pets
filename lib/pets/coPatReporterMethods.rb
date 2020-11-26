@@ -11,6 +11,7 @@ def format_patient_data(patient_data, options, hpo)
   suggested_childs = {}
   total_terms = 0
   terms_with_more_specific_childs = 0
+  rejected_patients = []
   patient_data.each do |pat_id, patient_record|
     hpos, chr, start, stop = patient_record
 
@@ -29,15 +30,19 @@ def format_patient_data(patient_data, options, hpo)
       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODES '#{pat_rejected_hpos.join(',')}'. Rejected."
       rejected_hpos.concat(pat_rejected_hpos)
     end
-    total_terms += hpos.length
-    # more_specific_childs = hpo.get_more_specific_childs_table(hpos)
-    more_specific_childs = hpo.get_childs_table(hpos, true)
-    terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
-    suggested_childs[pat_id] = more_specific_childs  
-    all_hpo.concat(hpos)
-    patient_record[HPOS] = hpos
+    if hpos.empty?
+      rejected_patients << pat_id
+    else
+      total_terms += hpos.length
+      # more_specific_childs = hpo.get_more_specific_childs_table(hpos)
+      more_specific_childs = hpo.get_childs_table(hpos, true)
+      terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
+      suggested_childs[pat_id] = more_specific_childs  
+      all_hpo.concat(hpos)
+      patient_record[HPOS] = hpos
+    end
   end
-  return all_hpo.uniq, suggested_childs, rejected_hpos.uniq, terms_with_more_specific_childs.fdiv(total_terms)
+  return all_hpo.uniq, suggested_childs, rejected_hpos.uniq, terms_with_more_specific_childs.fdiv(total_terms), rejected_patients
 end
 
 def generate_patient_hpo_matrix(patient_data, cohort_hpos)
