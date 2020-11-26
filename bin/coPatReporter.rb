@@ -256,7 +256,7 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, options[:pat_id_col])
   get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
-  summary_stats = get_summary_stats(patient_data, cohort_hpos, hpo)
+  summary_stats = get_summary_stats(patient_data, rejected_patients, cohort_hpos, hpo)
   summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]
 
   # Move code 'Percentage of defined HPOs that have more specific childs' outside the next function

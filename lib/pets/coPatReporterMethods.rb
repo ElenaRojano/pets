@@ -198,10 +198,11 @@ def get_patient_ids(patient_data) # To aviod duplications due to more one mutati
   return  ids.uniq
 end
 
-def get_summary_stats(patient_data, cohort_hpos, hpo)
+def get_summary_stats(patient_data, rejected_patients, cohort_hpos, hpo)
   stats = []
   stats << ['Unique HPOs', cohort_hpos.length]
   stats << ['Number of patients in the cohort', get_patient_ids(patient_data).length]
+  stats << ['Rejected patients by empty profile', rejected_patients.length]
   # stats << ['HPOs per patient (average)', hpo.get_profile_mean_length]
   stats << ['HPOs per patient (average)', hpo.get_profiles_mean_size]
   stats << ['HPOs for patient in percentile 90', hpo.get_profile_length_at_percentile(perc=90)]
