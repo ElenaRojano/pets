@@ -1,0 +1,7 @@
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">Profile <%= @hash_vars[:profile_id] %></h1>
+	<h1 style="text-align: center; background-color:#d6eaf8">Evidence similar to profile</h1>
+	<%=heatmap(id: :similarity_matrix, header: true, row_names: true )%>
+	<%=circular_genome(id: :candidates, header: false, row_names: true, transpose: false, 
+		 genomic_coordinates: @hash_vars[:genomic_coordinates] )%>
+</div>
