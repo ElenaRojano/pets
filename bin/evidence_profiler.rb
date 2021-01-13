@@ -162,13 +162,14 @@ template = File.open(File.join(REPORT_FOLDER, 'evidence_profile.erb')).read
 
 profiles_similarity = hpo.compare_profiles(external_profiles: evidences, sim_type: :lin, bidirectional: false)
 profiles_similarity.each do |profile_id, similarities|
-	candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(40)
+	candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(50)
 	candidates_ids = candidates.map{|c| c.first}
 	profile = profiles[profile_id.to_s] #compare_profiles return string id when al data is loaded with ids as symbols
 	candidate_similarity_matrix = get_detailed_similarity(profile, candidates, evidences, hpo)
 	candidate_similarity_matrix.each_with_index do |row, i|
 		row.unshift(hpo.translate_id(profile[i]))
 	end
+	candidate_similarity_matrix.sort!{|r1,r2| r2[1..r2.length].inject(0){|sum,n| sum +n} <=> r1[1..r1.length].inject(0){|sum,n| sum +n}}
 	candidate_similarity_matrix.unshift(['HP'] + candidates_ids)
 	container = {
 		profile_id: profile_id,
