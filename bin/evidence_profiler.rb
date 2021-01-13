@@ -40,18 +40,13 @@ end
 ############################################################################################
 def load_profiles(file_path, hpo)
 	profiles = {}
-	#count = 0
 	File.open(file_path).each do |line|
 		id, profile = line.chomp.split("\t")
 		hpos = profile.split(',').map{|a| a.to_sym}
 		hpos, rejected_hpos = hpo.check_ids(hpos)
 		if !hpos.empty?
-			#STDERR.puts hpos.inspect
-			#hpos, rejected_hpos_cl = hpo.clean_profile(hpos) # Only keeps one hpo
-			#STDERR.puts hpos.inspect
-			#Process.exit if count == 5
+			hpos = hpo.clean_profile(hpos) # Only keeps one hpo
 			profiles[id] = hpos if !hpos.empty?
-			#count += 1
 		end
 	end
 	return profiles
@@ -76,7 +71,7 @@ def get_detailed_similarity(profile, candidates, evidences, hpo)
 		candidate_evidence = evidences[candidate_id]
 		profile.each do |profile_term|
 			candidate_evidence.each do |candidate_term|
-				term_sim = hpo.compare([candidate_term], [profile_term], sim_type: :lin)
+				term_sim = hpo.compare([candidate_term], [profile_term], sim_type: :lin, bidirectional: false)
 				local_sim << [profile_term, candidate_term, term_sim]
 			end
 		end
@@ -153,7 +148,7 @@ hpo.load_profiles(profiles)
 FileUtils.mkdir_p(options[:output_folder])
 template = File.open(File.join(REPORT_FOLDER, 'evidence_profile.erb')).read
 
-profiles_similarity = hpo.compare_profiles(external_profiles: evidences, sim_type: :lin)
+profiles_similarity = hpo.compare_profiles(external_profiles: evidences, sim_type: :lin, bidirectional: false)
 profiles_similarity.each do |profile_id, similarities|
 	candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(40)
 	candidates_ids = candidates.map{|c| c.first}
