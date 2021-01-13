@@ -23,11 +23,22 @@ class Report_html
 			config["showIdeogram"] = true
 			chr = []
 			pos = []
-			vars.each do |var|
+			tags2remove = []
+			vars.each_with_index do |var, i|
 				coord = coordinates[var]
-				chr << coord.first.gsub(/[^\dXY]/,'')
-				pos << coord.last
+				if !coord.nil?
+					tag = coord.first.gsub(/[^\dXY]/,'')
+					if tag == 'X' || tag == 'Y' || (tag.to_i > 0 && tag.to_i <= 22)
+						chr << coord.first.gsub(/[^\dXY]/,'')
+						pos << coord.last - 1
+					else
+						tags2remove << i
+					end
+				else
+					tags2remove << i
+				end
 			end
+			tags2remove.reverse_each{|i| ent = vars.delete_at(i); warn("Feature #{ent} has not valid coordinates")} # Remove entities with invalid coordinates
 			z['chr'] = chr
 			z['pos'] = pos
 		end
@@ -40,12 +51,13 @@ end
 ############################################################################################
 def load_profiles(file_path, hpo)
 	profiles = {}
+	#count = 0
 	File.open(file_path).each do |line|
 		id, profile = line.chomp.split("\t")
 		hpos = profile.split(',').map{|a| a.to_sym}
 		hpos, rejected_hpos = hpo.check_ids(hpos)
 		if !hpos.empty?
-			hpos = hpo.clean_profile(hpos) # Only keeps one hpo
+			hpos = hpo.clean_profile(hpos)
 			profiles[id] = hpos if !hpos.empty?
 		end
 	end
