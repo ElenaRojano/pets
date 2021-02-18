@@ -19,15 +19,30 @@
 %>
 
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8">List of HPOs found</h1>
+	<%=
+	table(id: :table_uniq_hpos, header: true, styled: 'dt', attrib: {'class' => 'table table-striped'}) do |data_array|
+			header = data_array.shift
+	        data_array.each do |row|
+  				hpo_name = hpo.translate_id(row.first.to_sym)
+				row << get_hpo_link(row.last)
+				row[0] = hpo_name
+	        end
+	        header.unshift('HPO Name')
+	        data_array.unshift(header)
+	end
+	%>
+</div>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Input HPO quality control</h1>
-	<p>Introduccion</p>
 	<%=
 	table(id: :table1, header: true, styled: 'dt', attrib: {'class' => 'table table-striped'}) do |data_array|
 	        header = data_array.shift
 	        data_array.each do |row|
 	            row.each_with_index do |cell, i|
 					if i == 5
-      					hpo_name, rejected = hpo.translate_codes2names([cell])
+      					hpo_name, rejected = hpo.translate_ids([cell])
 						row[i] = "#{hpo_name.first}, #{get_hpo_link(cell)}"
 					elsif i == 6
 						row[i] = cell.round(6)

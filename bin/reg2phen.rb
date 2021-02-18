@@ -62,7 +62,7 @@ OptionParser.new do |opts|
   
   options[:prediction_file] = nil
   #chr\tstart\tstop
-  opts.on("-p", "--prediction_file PATH", "Input file with regions to predict") do |input_path|
+  opts.on("-p", "--prediction_file PATH", "Input file with regions to predict. Coordinates must be splitted by tabs") do |input_path|
     options[:prediction_file] = input_path
   end
 
@@ -111,6 +111,7 @@ gene_location, genes_with_kegg = get_and_parse_external_data(all_paths)
 # hpo = Ontology.new
 # hpo.load_data(options[:hpo_file])
 hpo = Ontology.new(file: options[:hpo_file], load_file: true)
+#hpo = nil
 
 training_set = load_training_file4regions(options[:training_file])
 
@@ -165,9 +166,14 @@ end
 # .ERB TEMPLATE (HTML) DEVELOPING
 ######################
 patient_results_table = parse_patient_results(results)
-#STDERR.puts patient_results_table.first.inspect
+table_uniq_hpos = patient_results_table.map{|a| a[5]}.uniq
+header = table_uniq_hpos.shift
+table_uniq_hpos = hpo.clean_profile(table_uniq_hpos.map{|a| a.to_sym})
+table_uniq_hpos.unshift(header)
+table_uniq_hpos.map!{|a| [a]}
 container = {
   :table1 => patient_results_table,
-  :hpo => hpo
+  :hpo => hpo,
+  :table_uniq_hpos => table_uniq_hpos
 }
 report_data(container, options[:html_file]) if options[:html_reporting]
