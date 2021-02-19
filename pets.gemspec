@@ -37,15 +37,15 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_development_dependency "bundler", "~> 2.0"
-  spec.add_development_dependency "rake", "~> 10.0"
-  spec.add_development_dependency "rspec", "~> 3.0"
+  spec.add_development_dependency "rake", "~> 13.0.3"
+  spec.add_development_dependency "rspec", "~> 3.10.0"
   spec.add_dependency "statistics2"
   spec.add_dependency "terminal-table"
   spec.add_dependency "semtools", "~> 0.1.0" 
   spec.add_dependency "report_html" 
   spec.add_dependency "numo-narray" 
   spec.add_dependency "npy" 
-  spec.add_dependency "parallel"  
+  spec.add_dependency "parallel", "~> 1.20.1"  
 
 end
 

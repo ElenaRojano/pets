@@ -64,13 +64,75 @@ def load_profiles(file_path, hpo)
 	return profiles
 end
 
+def load_evidences(evidences_path, hpo)
+	genomic_coordinates = {}
+	coord_files = Dir.glob(File.join(evidences_path, '*.coords'))
+	coord_files.each do |cd_f|
+		entity = File.basename(cd_f, '.coords')
+		coordinates, metadata = load_coordinates(cd_f)
+		genomic_coordinates[entity] = {coor: coordinates, metdat: metadata}
+	end
+	evidences = {}
+	evidence_files = Dir.glob(File.join(evidences_path, '*_HP.txt'))
+	evidence_files.each do |e_f|
+		pair = File.basename(e_f, '.txt')
+		profiles, id2label = load_evidence_profiles(e_f, hpo)
+		evidences[pair] = {prof: profiles, id2lab: id2label}
+	end
+	return evidences, genomic_coordinates
+end
+
 def load_coordinates(file_path)
 	coordinates = {}
+	metadata = {}
+	header = true
 	File.open(file_path).each do |line|
-		id, chr, start = line.chomp.split("\t")
-		coordinates[id] = [chr, start.to_i]
+		fields = line.chomp.split("\t")
+		if header
+			metadata[:type] = fields.first
+			header = false
+		else
+			entity, chr, strand, start, stop = fields
+			coordinates[entity] = [chr, start.to_i, stop.to_i, strand]
+		end
 	end
-	return coordinates
+	return coordinates, metadata
+end
+
+def load_evidence_profiles(file_path, hpo)
+	profiles = {}
+	id2label = {}
+	#count = 0
+	File.open(file_path).each do |line|
+		id, label, profile = line.chomp.split("\t")
+		next if id =~ /^BNODE:/ # Skip blank nodes in RDF from monarch
+		hpos = profile.split(',').map{|a| a.to_sym}
+		hpos, rejected_hpos = hpo.check_ids(hpos)
+		if !hpos.empty?
+			hpos = hpo.clean_profile(hpos)
+			profiles[id] = hpos if !hpos.empty?
+			id2label[id] = label
+		end
+	end
+	return profiles, id2label
+end
+
+def format_ids(entity, data, genomic_coordinates)
+	id_type = genomic_coordinates[entity][:metdat][:type]
+	profiles = data[:prof]
+	if id_type == 'label'
+		id2label = data[:id2lab]
+		profiles.transform_keys! do |key|
+			label = id2label[key.to_s]
+			label.gsub(' (human)', '').to_sym
+		end
+	end
+	if entity == 'variant'
+		profiles.transform_keys! do |key|
+			key.to_s.gsub('dbSNP:','').to_sym
+		end
+	end
+	return profiles
 end
 
 def get_detailed_similarity(profile, candidates, evidences, hpo)
@@ -107,6 +169,12 @@ def get_detailed_similarity(profile, candidates, evidences, hpo)
 	return matrix
 end
 
+def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
+	all_coordinates = genomic_coordinates[entity][:coor]
+	coords = all_coordinates.select{|id, coordinates| candidates_ids.include?(id.to_sym)}
+	return coords
+end
+
 
 
 #############################################################################################
@@ -132,6 +200,11 @@ OptionParser.new do |opts|
     options[:coordinates_file] = item
   end
 
+  options[:evidences] = nil
+  opts.on("-E", "--evidence_folder PATH", "Path to evidence folder.") do |item|
+    options[:evidences] = item
+  end
+
   options[:output_folder] = 'evidence_reports'
   opts.on("-o", "--output_folder PATH", 'Folder to save reports from profiles') do |item|
     options[:output_folder] = item
@@ -152,30 +225,47 @@ hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
 hpo = Ontology.new
 hpo.read(hpo_file)
 
-genomic_coordinates = load_coordinates(options[:coordinates_file])
 profiles = load_profiles(options[:profiles_file], hpo)
-evidences = load_profiles(options[:evidence_file], hpo)
+evidences, genomic_coordinates = load_evidences(options[:evidences], hpo)
 
 hpo.load_profiles(profiles)
-FileUtils.mkdir_p(options[:output_folder])
-template = File.open(File.join(REPORT_FOLDER, 'evidence_profile.erb')).read
-
-profiles_similarity = hpo.compare_profiles(external_profiles: evidences, sim_type: :lin, bidirectional: false)
-profiles_similarity.each do |profile_id, similarities|
-	candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(50)
-	candidates_ids = candidates.map{|c| c.first}
-	profile = profiles[profile_id.to_s] #compare_profiles return string id when al data is loaded with ids as symbols
-	candidate_similarity_matrix = get_detailed_similarity(profile, candidates, evidences, hpo)
-	candidate_similarity_matrix.each_with_index do |row, i|
-		row.unshift(hpo.translate_id(profile[i]))
+evidences_similarity = {}
+evidences.each do |pair, data|
+	entity, profile_type = pair.split('_')
+	if profile_type == 'HP'
+		evidence_profiles = format_ids(entity, data, genomic_coordinates)
+		evidences_similarity[pair] = hpo.compare_profiles(external_profiles: evidence_profiles, sim_type: :lin, bidirectional: false)
 	end
-	candidate_similarity_matrix.sort!{|r1,r2| r2[1..r2.length].inject(0){|sum,n| sum +n} <=> r1[1..r1.length].inject(0){|sum,n| sum +n}}
-	candidate_similarity_matrix.unshift(['HP'] + candidates_ids)
+end 
+
+template = File.open(File.join(REPORT_FOLDER, 'evidence_profile.erb')).read
+FileUtils.mkdir_p(options[:output_folder])
+profiles.each do |profile_id, reference_prof|
+	all_candidates = []
+	all_genomic_coordinates = {}
+	similarity_matrixs = {}
+	evidences_similarity.each do |pair, ev_profiles_similarity|
+		entity = pair.split('_').first
+		similarities = ev_profiles_similarity[profile_id.to_sym]
+		candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(40)
+		candidates_ids = candidates.map{|c| c.first}
+		candidate_similarity_matrix = get_detailed_similarity(reference_prof, candidates, evidences[pair][:prof], hpo)
+		candidate_similarity_matrix.each_with_index do |row, i|
+			row.unshift(hpo.translate_id(reference_prof[i]))
+		end
+		candidate_similarity_matrix.sort!{|r1,r2| r2[1..r2.length].inject(0){|sum,n| sum +n} <=> r1[1..r1.length].inject(0){|sum,n| sum +n}}
+		candidate_similarity_matrix.unshift(['HP'] + candidates_ids)
+		
+		all_candidates.concat(candidates)
+		similarity_matrixs[pair] = candidate_similarity_matrix
+		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
+		all_genomic_coordinates.merge!(coords)
+	end
 	container = {
 		profile_id: profile_id,
-		similarity_matrix: candidate_similarity_matrix,
-		genomic_coordinates: genomic_coordinates.select{|id, coordinates| candidates_ids.include?(id)},
-		candidates: candidates
+		candidates: all_candidates.each{|c| c[0] = c.first.to_s},
+		genomic_coordinates: all_genomic_coordinates.transform_values{|c| c.first(2) },
+		similarity_matrixs: similarity_matrixs
 	}
 	report = Report_html.new(container, 'Evidence profile report')
 	report.build(template)
