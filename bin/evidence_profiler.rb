@@ -69,8 +69,8 @@ def load_evidences(evidences_path, hpo)
 	coord_files = Dir.glob(File.join(evidences_path, '*.coords'))
 	coord_files.each do |cd_f|
 		entity = File.basename(cd_f, '.coords')
-		coordinates, metadata = load_coordinates(cd_f)
-		genomic_coordinates[entity] = {coor: coordinates, metdat: metadata}
+		coordinates = load_coordinates(cd_f)
+		genomic_coordinates[entity] = coordinates
 	end
 	evidences = {}
 	evidence_files = Dir.glob(File.join(evidences_path, '*_HP.txt'))
@@ -84,19 +84,17 @@ end
 
 def load_coordinates(file_path)
 	coordinates = {}
-	metadata = {}
 	header = true
 	File.open(file_path).each do |line|
 		fields = line.chomp.split("\t")
 		if header
-			metadata[:type] = fields.first
 			header = false
 		else
 			entity, chr, strand, start, stop = fields
 			coordinates[entity] = [chr, start.to_i, stop.to_i, strand]
 		end
 	end
-	return coordinates, metadata
+	return coordinates
 end
 
 def load_evidence_profiles(file_path, hpo)
@@ -105,7 +103,6 @@ def load_evidence_profiles(file_path, hpo)
 	#count = 0
 	File.open(file_path).each do |line|
 		id, label, profile = line.chomp.split("\t")
-		next if id =~ /^BNODE:/ # Skip blank nodes in RDF from monarch
 		hpos = profile.split(',').map{|a| a.to_sym}
 		hpos, rejected_hpos = hpo.check_ids(hpos)
 		if !hpos.empty?
@@ -115,24 +112,6 @@ def load_evidence_profiles(file_path, hpo)
 		end
 	end
 	return profiles, id2label
-end
-
-def format_ids(entity, data, genomic_coordinates)
-	id_type = genomic_coordinates[entity][:metdat][:type]
-	profiles = data[:prof]
-	if id_type == 'label'
-		id2label = data[:id2lab]
-		profiles.transform_keys! do |key|
-			label = id2label[key.to_s]
-			label.gsub(' (human)', '').to_sym
-		end
-	end
-	if entity == 'variant'
-		profiles.transform_keys! do |key|
-			key.to_s.gsub('dbSNP:','').to_sym
-		end
-	end
-	return profiles
 end
 
 def get_detailed_similarity(profile, candidates, evidences, hpo)
@@ -170,7 +149,7 @@ def get_detailed_similarity(profile, candidates, evidences, hpo)
 end
 
 def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
-	all_coordinates = genomic_coordinates[entity][:coor]
+	all_coordinates = genomic_coordinates[entity]
 	coords = all_coordinates.select{|id, coordinates| candidates_ids.include?(id.to_sym)}
 	return coords
 end
@@ -233,7 +212,8 @@ evidences_similarity = {}
 evidences.each do |pair, data|
 	entity, profile_type = pair.split('_')
 	if profile_type == 'HP'
-		evidence_profiles = format_ids(entity, data, genomic_coordinates)
+		evidence_profiles = data[:prof]
+		evidence_profiles.transform_keys!{|prof_id, terms| prof_id.to_sym}
 		evidences_similarity[pair] = hpo.compare_profiles(external_profiles: evidence_profiles, sim_type: :lin, bidirectional: false)
 	end
 end 
@@ -265,7 +245,8 @@ profiles.each do |profile_id, reference_prof|
 		profile_id: profile_id,
 		candidates: all_candidates.each{|c| c[0] = c.first.to_s},
 		genomic_coordinates: all_genomic_coordinates.transform_values{|c| c.first(2) },
-		similarity_matrixs: similarity_matrixs
+		similarity_matrixs: similarity_matrixs,
+		evidences: evidences
 	}
 	report = Report_html.new(container, 'Evidence profile report')
 	report.build(template)

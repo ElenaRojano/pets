@@ -4,6 +4,22 @@
 	<% @hash_vars[:similarity_matrixs].each do |pair, similarity_matrix| %>
 		<% 
 			matrix_name = pair + '_sim_matrix'
+			if pair == 'gene_HP'
+				dict = @hash_vars[:evidences][pair][:id2lab]
+				header = similarity_matrix.first
+				header.map! do |item|
+					label = dict[item.to_s]
+					label.nil? ? item : label
+				end
+				@hash_vars[:candidates].map! do |id, score|
+					label = dict[id]
+					[label.nil? ? id : label, score]
+				end
+				@hash_vars[:genomic_coordinates].transform_keys! do |k, v|
+					label = dict[k]
+					label.nil? ? k : label
+				end
+			end
 			@hash_vars[matrix_name] = similarity_matrix
 		%>
 		<%=heatmap(id: matrix_name, header: true, row_names: true, title: pair )%>
