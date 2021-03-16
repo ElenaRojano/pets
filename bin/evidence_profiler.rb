@@ -64,6 +64,40 @@ def load_profiles(file_path, hpo)
 	return profiles
 end
 
+def load_variants(variant_folder)
+	variants = {}
+	coordinates = {}
+	count = 0
+	all_vars = {}
+	Dir.glob(File.join(variant_folder, '*.tab')).each do |path|
+		profile_id = File.basename(path, '.tab')
+		vars = {}
+		File.open(path).each do |line|
+			fields = line.chomp.split("\t")
+			chr = fields[0]
+			start = fields[1].to_i
+			query = coordinates[chr]
+			if query.nil?
+				coordinates[chr] = [start]
+				count += 1
+				id = "var_#{count}"
+			else
+				if !query.include?(start)
+					query << start
+					count += 1
+					id = "var_#{count}"
+				else
+					id = all_vars.key([chr, start]) 
+				end
+			end
+			vars[id] = [chr, start]
+		end
+		all_vars.merge!(vars)
+		variants[profile_id] = vars
+	end
+	return variants
+end
+
 def load_evidences(evidences_path, hpo)
 	genomic_coordinates = {}
 	coord_files = Dir.glob(File.join(evidences_path, '*.coords'))
@@ -129,6 +163,7 @@ def get_detailed_similarity(profile, candidates, evidences, hpo)
 			end
 		end
 		local_sim.sort!{|s1, s2| s2.last <=> s1.last}
+
 		final_pairs = []
 		processed_profile_terms = []
 		processed_candidate_terms = []
@@ -189,6 +224,11 @@ OptionParser.new do |opts|
     options[:output_folder] = item
   end
 
+  options[:variant_data] = nil
+  opts.on("-V", "--variant_data PATH", 'Folder to tables of patient variants') do |item|
+    options[:variant_data] = item
+  end
+
  opts.on_tail("-h", "--help", "Show this message") do
     puts opts
     exit
@@ -205,6 +245,7 @@ hpo = Ontology.new
 hpo.read(hpo_file)
 
 profiles = load_profiles(options[:profiles_file], hpo)
+profile_variants = options[:variant_data].nil? ? {} : load_variants(options[:variant_data])
 evidences, genomic_coordinates = load_evidences(options[:evidences], hpo)
 
 hpo.load_profiles(profiles)
@@ -241,12 +282,15 @@ profiles.each do |profile_id, reference_prof|
 		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 		all_genomic_coordinates.merge!(coords)
 	end
+	prof_vars = profile_variants[profile_id]
 	container = {
 		profile_id: profile_id,
 		candidates: all_candidates.each{|c| c[0] = c.first.to_s},
 		genomic_coordinates: all_genomic_coordinates.transform_values{|c| c.first(2) },
 		similarity_matrixs: similarity_matrixs,
-		evidences: evidences
+		evidences: evidences,
+		var_ids: prof_vars.nil? ? nil : prof_vars.keys.map{|i| [i, 0]},
+		var_coordinates: prof_vars
 	}
 	report = Report_html.new(container, 'Evidence profile report')
 	report.build(template)

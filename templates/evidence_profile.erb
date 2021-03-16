@@ -27,4 +27,8 @@
 	<% end %>
 	<%=circular_genome(id: :candidates, header: false, row_names: true, transpose: false, 
 		 genomic_coordinates: @hash_vars[:genomic_coordinates] )%>
+	<% if !@hash_vars[:var_ids].nil? %>
+		<%=circular_genome(id: :var_ids, header: false, row_names: true, transpose: false, 
+		 genomic_coordinates: @hash_vars[:var_coordinates] )%>
+	<% end %>
 </div>
