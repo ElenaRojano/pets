@@ -162,6 +162,11 @@ OptionParser.new do |opts|
   	options[:start_col] = data
   end
 
+  options[:root_node] = "HP:0000118"
+  opts.on("-r", "--root_node", "Root node from which the ontology will be represented ") do |root_node|
+    options[:root_node] = root_node
+  end
+
   options[:ic_stats] = 'freq'
   opts.on("-t", "--ic_stats STRING", "'freq' to compute IC based en hpo frequency in the input cohort. 'freq_internal' to use precomputed internal IC stats. 'onto' to compute ic based on hpo ontology structure.. Default freq") do |data|
     options[:ic_stats] = data
@@ -171,6 +176,7 @@ OptionParser.new do |opts|
   opts.on("-T", "--threads INTEGER", "Number of threads to be used in calculations. Default 1") do |data|
     options[:threads] = data.to_i
   end
+
 
 
   opts.on_tail("-h", "--help", "Show this message") do
@@ -324,7 +330,7 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   ###Cohort frequency calculation
   #x.report("ronto:"){
     ronto_file = File.join(temp_folder, 'hpo_freq_colour')
-    system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
+    system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} --root_path #{options[:root_path]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
   #}
 
   write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
