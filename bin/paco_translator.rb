@@ -14,9 +14,9 @@ require 'semtools'
 ###############
 
 def translate_hpo(patient_data, hpo, translate)
-	patients_with_hpo_names = {}
-	patient_data.each do |patientID, patient_record|
-		hpos, chr, start, stop = patient_record
+  patients_with_hpo_names = {}
+  patient_data.each do |patientID, patient_record|
+    hpos, chr, start, stop = patient_record
     if translate == 'names'
       # hpos, rejected = hpo.translate_codes2names(hpos)
       hpos, rejected = hpo.translate_ids(hpos)
@@ -29,14 +29,20 @@ def translate_hpo(patient_data, hpo, translate)
   end
 end
 
-def save_translated_file(patients_with_hpo_names, output_file)
-	File.open(output_file, 'w') do |f|
-  	patients_with_hpo_names.each do |id, patient_record|
+def save_translated_file(patients_with_hpo_names, output_file, mode)
+  File.open(output_file, 'w') do |f|
+    patients_with_hpo_names.each do |id, patient_record|
       hpos, chr, start, stop = patient_record
-  		id = id.gsub(/_i[0-9]+$/,'')
-      f.puts "#{id}\t#{hpos.join('|')}\t#{[chr, start, stop].join("\t")}"
-  	end
-	end
+      id = id.gsub(/_i[0-9]+$/,'')
+      if mode == 'default'
+        f.puts "#{id}\t#{hpos.join('|')}\t#{[chr, start, stop].join("\t")}"
+      elsif mode == 'paco'
+        f.puts "#{id}\t#{[chr, start, stop].join("\t")}\t#{hpos.join('|')}"
+      else
+        abort('Wrong save_mode] option, please try default or paco')
+      end
+    end
+  end
 end
 
 ###############
@@ -79,17 +85,22 @@ OptionParser.new do |opts|
 
   options[:hpo_col] = nil
   opts.on("-p", "--hpo_term_col INTEGER/STRING", "Column name if header true or 0-based position of the column with the HPO terms") do |data|
-  	options[:hpo_col] = data
+    options[:hpo_col] = data
   end
 
   options[:start_col] = nil
   opts.on("-s", "--start_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the start mutation coordinate") do |data|
-  	options[:start_col] = data
+    options[:start_col] = data
   end
 
   options[:hpo_separator] = '|'
   opts.on("-S", "--hpo_separator STRING", "Set which character must be used to split the HPO profile. Default '|'") do |data|
     options[:hpo_separator] = data
+  end
+
+  options[:save_mode] = 'default'
+  opts.on("-m", "--save_mode STRING", "Set output data mode") do |data|
+    options[:save_mode] = data
   end
 
   options[:translate] = nil
@@ -111,4 +122,4 @@ if !options[:translate].nil?
   hpo = Ontology.new(file: hpo_file, load_file: true)
   translate_hpo(patient_data, hpo, options[:translate])
 end
-save_translated_file(patient_data, options[:output_file])
+save_translated_file(patient_data, options[:output_file], options[:save_mode])
