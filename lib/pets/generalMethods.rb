@@ -4,6 +4,14 @@ require 'net/http'
 require 'zlib'
 require 'json'
 
+def read_excluded_hpo_file(file)
+	excluded_hpo = []
+	File.open(file).each do |line|
+		excluded_hpo << line.chomp
+	end
+	return excluded_hpo
+end
+
 #Common methods for predictors
 #Training file example = 9  131371492   131375954   HP:0010974  2.41161970596	9.3.A.5
 #1. Indexing by chr (region)

@@ -1,9 +1,30 @@
 require 'numo/narray'
+require 'semtools'
 
 HPOS = 0
 CHR = 1
 START = 2
 STOP = 3
+
+def load_hpo_ontology(hpo_file, excluded_hpo_file)
+  hpo = nil
+  if !hpo_file.include?('.json')
+    if !excluded_hpo_file.nil?
+      hpo = Ontology.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(excluded_hpo_file))
+    else
+      hpo = Ontology.new(file: hpo_file, load_file: true)
+    end
+  else
+    hpo = Ontology.new
+    hpo.read(hpo_file)
+    if !excluded_hpo_file.nil?
+      hpo.add_removable_terms(read_excluded_hpo_file(excluded_hpo_file))
+      hpo.remove_removable()
+      hpo.build_index()
+    end
+  end
+  return hpo
+end
 
 def format_patient_data(patient_data, options, hpo)
   all_hpo = []

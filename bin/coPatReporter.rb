@@ -27,27 +27,10 @@ end
 ##########################
 # FUNCTIONS
 ##########################
-def read_excluded_hpo_file(file)
-  excluded_hpo = []
-  File.open(file).each do |line|
-    excluded_hpo << line.chomp
-  end
-  return excluded_hpo
-end
-
-# def translate_codes(clusters, hpo)
-#   clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
-#     patient_hpos_ary.map!{|patient_hpos| patient_hpos.map{|hpo_code| hpo.translate_id(hpo_code)}}
-#   end
-#   return clusters
-# end
-
 
 def translate_codes(clusters, hpo)
   translated_clusters = []
   clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
-    #patient_hpos_ary.each do |patient_hpos| 
-      #patient_hpos.each do |hpo_code| 
         translate_codes = patient_hpos_ary.map{|patient_hpos| patient_hpos.map{|hpo_code| hpo.translate_id(hpo_code)}}
         translated_clusters << [clusterID, 
           num_of_pats, 
@@ -55,11 +38,7 @@ def translate_codes(clusters, hpo)
           patient_hpos_ary, 
           translate_codes
         ]
-      #end
-    #end
   end
-  #STDERR.puts translated_clusters.inspect
-  #Process.exit
   return translated_clusters
 end
 
@@ -209,25 +188,7 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
   hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
-#Benchmark.bm() do |x|
-  hpo = nil
-#  x.report("load hpo:"){
-  if !hpo_file.include?('.json')
-    if !options[:excluded_hpo].nil?
-      hpo = Ontology.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(options[:excluded_hpo]))
-    else
-      hpo = Ontology.new(file: hpo_file, load_file: true)
-    end
-  else
-    hpo = Ontology.new
-    hpo.read(hpo_file)
-    if !options[:excluded_hpo].nil?
-      hpo.add_removable_terms(read_excluded_hpo_file(options[:excluded_hpo]))
-      hpo.remove_removable()
-      hpo.build_index()
-    end
-  end
-#  }
+  hpo = load_hpo_ontology(hpo_file, options[:excluded_hpo])
 
   patient_data = load_patient_cohort(options)
 
@@ -240,16 +201,12 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
   ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
-  # onto_ic, freq_ic = hpo.get_ic_by_onto_and_freq(hpo_file)
   onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq
   observed_keys = onto_ic.keys
   observed_keys.each do |k| # duplitacte to symbols
-    # onto_ic[k.to_s] = onto_ic.delete(k)
-    # freq_ic[k.to_s] = freq_ic.delete(k)
     onto_ic[k.to_s] = onto_ic[k]
     freq_ic[k.to_s] = freq_ic[k]
   end
-  # onto_ic_profile, freq_ic_profile = hpo.get_ic_profile_by_onto_and_freq
   onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnik_dual_ICs
   onto_ic_profile = onto_ic_profile.values
   freq_ic_profile = freq_ic_profile.values
@@ -328,11 +285,9 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
   system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
 
   ###Cohort frequency calculation
-  #x.report("ronto:"){
-    ronto_file = File.join(temp_folder, 'hpo_freq_colour')
-    system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} --root_path #{options[:root_path]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
-  #}
-
+  ronto_file = File.join(temp_folder, 'hpo_freq_colour')
+  system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
+  
   write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
   system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
 
