@@ -286,7 +286,7 @@ sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
 
   ###Cohort frequency calculation
   ronto_file = File.join(temp_folder, 'hpo_freq_colour')
-  system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
+      system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} --root_path #{options[:root_path]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
   
   write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
   system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
