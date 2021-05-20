@@ -284,9 +284,9 @@ write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 
 write_arrays4scatterplot(onto_ic_profile.values, freq_ic_profile.values, hpo_profile_ic_file, 'OntoIC', 'FreqIC') #HP profiles
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
 
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{hpo_ic_file} -o #{File.join(temp_folder, 'hpo_ics.pdf')} -x 'OntoIC' - y 'FreqIC' --x_tag 'HP Ontology IC' --y_tag 'HP Frequency based IC' --x_lim '0,4.5' --y_lim '0,4.5'")
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{hpo_profile_ic_file} - o #{File.join(temp_folder, 'hpo_profile_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology Profile IC' --y_tag 'HP Frequency based Profile IC' --x_lim '0,4.5' --y_lim '0,4.5'")
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{parents_per_term_file} -o #{File.join(temp_folder, 'parents_per_term.pdf')} -x 'ProfileSize' -y 'ParentTerms' --x_tag 'Patient HPO profile size' --y_tag 'Parent HPO terms within the profile'")
 
 ###Cohort frequency calculation
 ronto_file = File.join(temp_folder, 'hpo_freq_colour')
