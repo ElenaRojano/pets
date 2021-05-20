@@ -200,6 +200,7 @@ hpo.load_profiles(patient_uniq_profiles)
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
+
 onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq
 onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnik_dual_ICs
 onto_ic_profile = onto_ic_profile.values
@@ -212,6 +213,8 @@ get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
 summary_stats = get_summary_stats(patient_data, rejected_patients, cohort_hpos, hpo)
 summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]
+summary_stats << ['DsI for uniq HP terms', hpo.get_dataset_specifity_index('uniq')]
+summary_stats << ['DsI for frequency weigthed HP terms', hpo.get_dataset_specifity_index('weigthed')]
 
 # Move code 'Percentage of defined HPOs that have more specific childs' outside the next function
 # hpo_stats = hpo.get_term_frequency_from_profiles(names=true)[0..20]

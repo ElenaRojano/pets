@@ -239,38 +239,9 @@ def cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_
 end
 
 def get_profile_ontology_distribution_tables(hpo)
-  cohort_ontology_levels = hpo.get_ontology_levels_from_profiles(uniq=false)
-  uniq_cohort_ontology_levels = hpo.get_ontology_levels_from_profiles
-  # hpo_ontology_levels = hpo.term_level
-  hpo_ontology_levels = hpo.get_ontology_levels
-  total_ontology_terms = hpo_ontology_levels.values.flatten.length
-  total_cohort_terms = cohort_ontology_levels.values.flatten.length
-  total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
-
-  ontology_levels = []
-  distribution_percentage = []
-  hpo_ontology_levels.each do |level, terms|
-    cohort_terms = cohort_ontology_levels[level]
-    uniq_cohort_terms = uniq_cohort_ontology_levels[level]
-    if cohort_terms.nil? || uniq_cohort_terms.nil?
-      num = 0
-      u_num = 0
-    else
-      num = cohort_terms.length
-      u_num = uniq_cohort_terms.length
-    end
-    ontology_levels << [level, terms.length, num]
-    distribution_percentage << [
-      level,
-      (terms.length.fdiv(total_ontology_terms)*100).round(3),
-      (num.fdiv(total_cohort_terms)*100).round(3),
-      (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
-    ]
-  end
-  ontology_levels.sort! { |x,y| x.first <=> y.first }
-  distribution_percentage.sort! { |x,y| x.first <=> y.first }
-  ontology_levels.unshift ["level", "ontology", "cohort"]
-  distribution_percentage.unshift ["level", "ontology", "weighted cohort", "uniq terms cohort"]
+  ontology_levels, distribution_percentage = hpo.get_profile_ontology_distribution_tables
+  ontology_levels.unshift(["level", "ontology", "cohort"])
+  distribution_percentage.unshift(["level", "ontology", "weighted cohort", "uniq terms cohort"])
   return ontology_levels, distribution_percentage
 end
 
