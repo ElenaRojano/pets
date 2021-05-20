@@ -4,9 +4,9 @@ library(optparse)
 
 option_list <- list(
   optparse::make_option(c("-i", "--info"), type="character", default=NULL,
-                        help="File - needs minimum 2 columns"),
+                        help="Input file - needs minimum 2 columns"),
   optparse::make_option(c("-o", "--output"), type="character", default="out.pdf",
-                        help="column name for x-axis values."),
+                        help="Output file name"),
   optparse::make_option(c("-x", "--x_axis"), type="character", default=NULL,
                         help="column name for y-axis values."),
   optparse::make_option(c("-y", "--y_axis"), type="character", default=NULL,
