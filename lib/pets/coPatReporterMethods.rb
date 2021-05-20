@@ -37,7 +37,6 @@ def format_patient_data(patient_data, options, hpo)
     hpos, chr, start, stop = patient_record
 
     if options[:hpo_names]
-      # hpos, pat_rejected_hpos = hpo.translate_names2codes(hpos)
       hpos, pat_rejected_hpos = hpo.translate_names(hpos)
       if !pat_rejected_hpos.empty?
         STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo NAMES '#{pat_rejected_hpos.join(',')}'. Rejected."
@@ -45,7 +44,6 @@ def format_patient_data(patient_data, options, hpo)
       end
     end
 
-    # hpos, pat_rejected_hpos = hpo.check_codes(hpos)
     hpos, pat_rejected_hpos = hpo.check_ids(hpos.map{|a| a.to_sym})
     if !pat_rejected_hpos.empty?
       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODES '#{pat_rejected_hpos.join(',')}'. Rejected."
@@ -55,7 +53,6 @@ def format_patient_data(patient_data, options, hpo)
       rejected_patients << pat_id
     else
       total_terms += hpos.length
-      # more_specific_childs = hpo.get_more_specific_childs_table(hpos)
       more_specific_childs = hpo.get_childs_table(hpos, true)
       terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
       suggested_childs[pat_id] = more_specific_childs  
@@ -118,12 +115,11 @@ def process_clustered_patients(options, clustered_patients, patient_data, hpo, o
         phenotypes = patient[HPOS]
         profile_ics << get_profile_ic(phenotypes, phenotype_ic)
         if processed_clusters < options[:clusters2show_detailed_phen_data]
-          # phen_names, rejected_codes = hpo.translate_codes2names(phenotypes) #optional
           phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
           all_phens << phen_names
         end
       end
-      chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil?
+      chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil? && patient[CHR] != '-'
     end
     num_of_patients = processed_patients.length
     next if num_of_patients == 1 # Check that current cluster only has one patient with several mutations
@@ -288,6 +284,7 @@ def process_patient_data(patient_data)
 	parsed_patient_data = {}
 	patient_data.each do |patientID, metadata|
 		phenotypes, chr, start, stop = metadata
+    next if chr == '-'
 		info = [patientID, start.to_i, stop.to_i]
 		query = parsed_patient_data[chr]
 		if query.nil?
