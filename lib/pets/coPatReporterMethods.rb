@@ -86,16 +86,7 @@ def write_matrix_for_R(matrix, x_names, y_names, file)
   end
 end
 
-def process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, patient_id_type) # get ic and chromosomes
-  if options[:ic_stats] == 'freq_internal'
-    ic_file = ENV['ic_file']
-    ic_file = IC_FILE if ic_file.nil?
-    phenotype_ic = load_hpo_ci_values(ic_file)
-  elsif options[:ic_stats] == 'freq'
-    phenotype_ic = freq_ic
-  elsif options[:ic_stats] == 'onto'
-    phenotype_ic = onto_ic
-  end
+def process_clustered_patients(options, clustered_patients, patient_data, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
   all_ics = []
   top_cluster_phenotypes = []
   cluster_data_by_chromosomes = []
@@ -186,21 +177,10 @@ def write_coverage_data(coverage_to_plot, coverage_to_plot_file)
 end
 
 def get_uniq_hpo_profiles(patient_data) # To avoid duplications due to more one mutation in the same patient
-  #STDERR.puts patient_data.keys.inspect
-  #Process.exit
-  #transformar a hash
   hpo_profiles = {}
-  #hpo_profiles = []
-  parsed_pats = []
   patient_data.each do |variant_id, patient_rec|
     pat_id, count = variant_id.split('_i')
-    if parsed_pats.include?(pat_id)
-      next
-    else
-      parsed_pats << pat_id
-      #hpo_profiles << patient_rec[HPOS]
-      hpo_profiles[pat_id] = patient_rec[HPOS]
-    end
+    hpo_profiles[pat_id] = patient_rec[HPOS] if !hpo_profiles.include?(pat_id)
   end
   return hpo_profiles
 end

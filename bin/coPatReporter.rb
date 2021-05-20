@@ -200,15 +200,27 @@ hpo.load_profiles(patient_uniq_profiles)
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
-
-onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq
-onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnik_dual_ICs
-onto_ic_profile = onto_ic_profile.values
-freq_ic_profile = freq_ic_profile.values
-
+onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq # IC for TERMS
+onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnik_dual_ICs # IC for PROFILES
+if options[:ic_stats] == 'freq_internal'
+  ic_file = ENV['ic_file']
+  ic_file = IC_FILE if ic_file.nil?
+  freq_ic = load_hpo_ci_values(ic_file)
+  phenotype_ic = freq_ic
+  freq_ic_profile = {}
+  patient_uniq_profiles.each do |pat_id, phenotypes|
+    freq_ic_profile[pat_id] = get_profile_ic(phenotypes, phenotype_ic)
+  end
+else
+  if options[:ic_stats] == 'freq'
+    phenotype_ic = freq_ic
+  elsif options[:ic_stats] == 'onto'
+    phenotype_ic = onto_ic
+  end
+end
 clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 
 
-all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, options[:pat_id_col])
+all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, phenotype_ic, options[:pat_id_col])
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
 summary_stats = get_summary_stats(patient_data, rejected_patients, cohort_hpos, hpo)
@@ -216,8 +228,6 @@ summary_stats << ['Percentage of defined HPOs that have more specific childs', (
 summary_stats << ['DsI for uniq HP terms', hpo.get_dataset_specifity_index('uniq')]
 summary_stats << ['DsI for frequency weigthed HP terms', hpo.get_dataset_specifity_index('weigthed')]
 
-# Move code 'Percentage of defined HPOs that have more specific childs' outside the next function
-# hpo_stats = hpo.get_term_frequency_from_profiles(names=true)[0..20]
 hpo_stats = hpo.get_profiles_terms_frequency()
 hpo_stats.map{ |stat| stat[1] = stat[1]*100}
 summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
@@ -270,8 +280,8 @@ end
 # Write files for report
 #----------------------------------
 write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
-write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 'FreqIC')
-write_arrays4scatterplot(onto_ic_profile, freq_ic_profile, hpo_profile_ic_file, 'OntoIC', 'FreqIC')
+write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 'FreqIC') # hP terms
+write_arrays4scatterplot(onto_ic_profile.values, freq_ic_profile.values, hpo_profile_ic_file, 'OntoIC', 'FreqIC') #HP profiles
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
 
 system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")

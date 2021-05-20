@@ -107,7 +107,7 @@ def load_hpo_ci_values(information_coefficient_file)
 	File.open(information_coefficient_file).each do |line|
 		line.chomp!
 		hpo_code, ci = line.split("\t")
-		hpos_ci_values[hpo_code] = ci.to_f
+		hpos_ci_values[hpo_code.to_sym] = ci.to_f
 	end
 	return hpos_ci_values
 end
