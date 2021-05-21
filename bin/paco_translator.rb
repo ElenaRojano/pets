@@ -14,7 +14,7 @@ require 'semtools'
 ###############
 
 def translate_hpo(patient_data, hpo, translate)
-  patients_with_hpo_names = {}
+  reject_pats = []
   patient_data.each do |patientID, patient_record|
     hpos, chr, start, stop = patient_record
     if translate == 'names'
@@ -25,12 +25,22 @@ def translate_hpo(patient_data, hpo, translate)
       hpos, rejected = hpo.translate_names(hpos)
       STDERR.puts(" The ontology names '#{rejected.join(',')}' were not found") if !rejected.empty?
     end
-    patient_record[0] = hpos
+    if hpos.empty?
+      reject_pats << patientID 
+    else
+      patient_record[0] = hpos
+    end
+  end
+  reject_pats.each do | rj_pat|
+    patient_data.delete(rj_pat)
   end
 end
 
 def save_translated_file(patients_with_hpo_names, output_file, mode)
   File.open(output_file, 'w') do |f|
+    if mode == 'paco'
+      f.puts "patient_id\tchr\tstart\tstop\tphenotypes"
+    end
     patients_with_hpo_names.each do |id, patient_record|
       hpos, chr, start, stop = patient_record
       id = id.gsub(/_i[0-9]+$/,'')
