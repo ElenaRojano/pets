@@ -77,6 +77,23 @@ def generate_patient_hpo_matrix(patient_data, cohort_hpos)
   return matrix
 end
 
+def generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
+  y_names = patient_data.keys
+  x_names = cohort_hpos
+  x_names_indx = {}
+  cohort_hpos.each_with_index{|hp,x| x_names_indx[hp]=x}
+  # row (y), cols (x)
+  matrix = Numo::DFloat.zeros(patient_data.length, cohort_hpos.length)
+  i = 0
+  patient_data.each do |pat_id, patient_record|
+    patient_record[HPOS].each do |hp|
+      matrix[i, x_names_indx[hp]] = 1
+    end
+    i += 1
+  end
+  return matrix, y_names, x_names
+end
+
 def write_matrix_for_R(matrix, x_names, y_names, file)
   File.open(file, 'w') do |f|
     f.puts x_names.join("\t")
@@ -208,8 +225,14 @@ end
 
 def cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file)
   pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
-  write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
-  system("#{File.join(EXTERNAL_CODE, 'get_clusters.R')} #{matrix_file} #{clustered_patients_file}") if !File.exists?(clustered_patients_file)
+  pat_hpo_matrix, pat_id, hp_id  = generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
+  x_axis_file = matrix_file.gsub('.npy','_x.lst')
+  File.open(x_axis_file, 'w'){|f| f.print hp_id.join("\n") }  
+  y_axis_file = matrix_file.gsub('.npy','_y.lst')
+  File.open(y_axis_file, 'w'){|f| f.print pat_id.join("\n") }
+  Npy.save(matrix_file, pat_hpo_matrix)
+  #write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
+  system("#{File.join(EXTERNAL_CODE, 'get_clusters.R')} -d #{matrix_file} -o #{clustered_patients_file} -y #{matrix_file.gsub('.npy','')}") if !File.exists?(clustered_patients_file)
   clustered_patients = load_clustered_patients(clustered_patients_file)
   return(clustered_patients)
 end

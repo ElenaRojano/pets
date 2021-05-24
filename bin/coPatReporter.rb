@@ -173,7 +173,7 @@ output_folder = File.dirname(options[:output_file])
 detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profile_evaluation.csv')
 rejected_file = File.join(output_folder, 'rejected_records.txt')
 temp_folder = File.join(output_folder, 'temp')
-matrix_file = File.join(temp_folder, 'pat_hpo_matrix.txt')
+matrix_file = File.join(temp_folder, 'pat_hpo_matrix.npy')
 hpo_ic_file = File.join(temp_folder, 'hpo_ic.txt')
 hpo_profile_ic_file = File.join(temp_folder, 'hpo_ic_profile.txt')
 hpo_frequency_file = File.join(temp_folder, 'hpo_cohort_frequency.txt')
@@ -229,7 +229,7 @@ summary_stats << ['DsI for uniq HP terms', hpo.get_dataset_specifity_index('uniq
 summary_stats << ['DsI for frequency weigthed HP terms', hpo.get_dataset_specifity_index('weigthed')]
 
 hpo_stats = hpo.get_profiles_terms_frequency()
-hpo_stats.map{ |stat| stat[1] = stat[1]*100}
+hpo_stats.each{ |stat| stat[1] = stat[1]*100}
 summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
 
 all_cnvs_length = []
@@ -313,13 +313,13 @@ end
 # CLUSTER COHORT ANALYZER REPORT
 #----------------------------------
 Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do |method_name|
-  matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.txt")
+  matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.npy")
   profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
   clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
   profiles_similarity = hpo.compare_profiles(sim_type: method_name.to_sym)
   profile_pairs = write_profile_pairs(profiles_similarity, profiles_similarity_filename)
   similarity_matrix, axis_names = format_profiles_similarity_data_numo(profiles_similarity)
-  axis_file = matrix_filename.gsub('.txt','.lst')
+  axis_file = matrix_filename.gsub('.npy','.lst')
   File.open(axis_file, 'w'){|f| f.print axis_names.join("\n") }
   Npy.save(matrix_filename, similarity_matrix)
   ext_var = ''
