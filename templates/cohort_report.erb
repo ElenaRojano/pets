@@ -160,7 +160,7 @@
 	<p> For each patient, their HPO profile similarity coefficient is calculated according to the different methods specified in the analysis and represented in these heatmaps. </p>
 	<% 
 		@hash_vars[:clustering_methods].each do |clust_method|
-			plot = File.join(@hash_vars[:temp_folder], "#{clust_method}_heatmap.pdf")
+			plot = File.join(@hash_vars[:temp_folder], "#{clust_method}_heatmap.png")
 			if File.exists?(plot) %>
 				<%= embed_pdf(plot, 'width="800" height="800"') %>
 			<% else
