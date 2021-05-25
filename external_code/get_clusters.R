@@ -1,6 +1,8 @@
 #! /usr/bin/env Rscript
 library(RcppCNPy)
 library(optparse)
+library(fastcluster)
+
 
 option_list <- list(
 	make_option(c("-d", "--data_file"), type="character",
@@ -24,7 +26,7 @@ if(!is.null(opt$npy)){
 }
 
 d <- dist(matrix_data, method = "euclidean") # distance matrix
-fit <- hclust(d, method="ward.D2")
+fit <- fastcluster::hclust(d, method="ward.D2")
 fit$height <- round(fit$height, 6) 
 groups <- cutree(fit, h=1.5) 
 write.table(groups, file=opt$output, sep="\t", quote=FALSE, col.names=FALSE)

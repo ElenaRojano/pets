@@ -3,6 +3,7 @@
 library(RcppCNPy)
 library(optparse)
 library(gplots)
+library(fastcluster)
 library("RColorBrewer")
 
 #####################
@@ -116,7 +117,7 @@ if(is.null(opt$matrix_transformation)){
 ######### CLUSTERING
 if(opt$same_sets){
 	quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
-	hr <- hclust(as.dist(matrix_transf), method="ward.D2")
+	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cutree(hr, h = quantValue)
 	######### EXPORT
 	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
@@ -126,10 +127,10 @@ if(opt$same_sets){
 	mdistCols = toDistances(matrix_transf, FALSE)
 	# Obtaing clustering
 	quantValue_row <- quantile(mdistRows, c(.2), na.rm = TRUE)
-	hr_row <- hclust(as.dist(mdistRows), method="ward.D2")
+	hr_row <- fastcluster::hclust(as.dist(mdistRows), method="ward.D2")
 	groups_row <- cutree(hr_row, h = quantValue_row)
 	quantValue_col <- quantile(mdistCols, c(.2), na.rm = TRUE)
-	hr_col <- hclust(as.dist(mdistCols), method="ward.D2")
+	hr_col <- fastcluster::hclust(as.dist(mdistCols), method="ward.D2")
 	groups_col <- cutree(hr_col, h = quantValue_col)
 	######### EXPORT
 	write.table(groups_row, file=paste(opt$output, '_clusters_rows.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
