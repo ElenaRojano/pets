@@ -198,6 +198,7 @@ patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
 hpo.load_profiles(patient_uniq_profiles)
 
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
+clean_patient_profiles(hpo, patient_uniq_profiles)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
 onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq # IC for TERMS

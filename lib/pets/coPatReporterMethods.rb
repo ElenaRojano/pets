@@ -63,6 +63,22 @@ def format_patient_data(patient_data, options, hpo)
   return all_hpo.uniq, suggested_childs, rejected_hpos.uniq, terms_with_more_specific_childs.fdiv(total_terms), rejected_patients
 end
 
+def clean_patient_profiles(hpo, patient_profiles)
+  rejected_patients = []
+  patient_profiles.each do |pat, prof|
+    phens = hpo.clean_profile_hard(prof)
+    if phens.empty?
+      rejected_patients << pat
+    else
+      patient_profiles[pat] = phens
+    end
+  end
+  patient_profiles.select!{|pat_id, patient_record| !rejected_patients.include?(pat_id)}
+  hpo.profiles = {}
+  hpo.load_profiles(patient_profiles)
+
+end
+
 def generate_patient_hpo_matrix(patient_data, cohort_hpos)
   matrix = []
   n = cohort_hpos.length
@@ -279,7 +295,9 @@ def write_arrays4scatterplot(x_axis_value, y_axis_value, filename, x_axis_name, 
   File.open(filename, 'w') do |f|
     f.puts "#{x_axis_name}\t#{y_axis_name}"
     x_axis_value.each_with_index do |value,i|
-        f.puts [value, y_axis_value[i]].join("\t")
+      y_value = y_axis_value[i]
+      raise("The #{i} position is not presented in y_axis_value") if y_value.nil?
+      f.puts [value, y_value].join("\t")
     end
   end
 end
