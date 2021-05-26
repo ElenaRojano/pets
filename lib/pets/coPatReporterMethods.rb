@@ -225,13 +225,14 @@ end
 
 def cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file)
   pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
-  pat_hpo_matrix, pat_id, hp_id  = generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
-  x_axis_file = matrix_file.gsub('.npy','_x.lst')
-  File.open(x_axis_file, 'w'){|f| f.print hp_id.join("\n") }  
-  y_axis_file = matrix_file.gsub('.npy','_y.lst')
-  File.open(y_axis_file, 'w'){|f| f.print pat_id.join("\n") }
-  Npy.save(matrix_file, pat_hpo_matrix)
-  #write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
+  if !File.exists?(matrix_file)
+    pat_hpo_matrix, pat_id, hp_id  = generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
+    x_axis_file = matrix_file.gsub('.npy','_x.lst')
+    File.open(x_axis_file, 'w'){|f| f.print hp_id.join("\n") }  
+    y_axis_file = matrix_file.gsub('.npy','_y.lst')
+    File.open(y_axis_file, 'w'){|f| f.print pat_id.join("\n") }
+    Npy.save(matrix_file, pat_hpo_matrix)
+  end
   system("#{File.join(EXTERNAL_CODE, 'get_clusters.R')} -d #{matrix_file} -o #{clustered_patients_file} -y #{matrix_file.gsub('.npy','')}") if !File.exists?(clustered_patients_file)
   clustered_patients = load_clustered_patients(clustered_patients_file)
   return(clustered_patients)
