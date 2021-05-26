@@ -173,7 +173,7 @@ output_folder = File.dirname(options[:output_file])
 detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profile_evaluation.csv')
 rejected_file = File.join(output_folder, 'rejected_records.txt')
 temp_folder = File.join(output_folder, 'temp')
-matrix_file = File.join(temp_folder, 'pat_hpo_matrix.txt')
+matrix_file = File.join(temp_folder, 'pat_hpo_matrix.npy')
 hpo_ic_file = File.join(temp_folder, 'hpo_ic.txt')
 hpo_profile_ic_file = File.join(temp_folder, 'hpo_ic_profile.txt')
 hpo_frequency_file = File.join(temp_folder, 'hpo_cohort_frequency.txt')
@@ -198,6 +198,7 @@ patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
 hpo.load_profiles(patient_uniq_profiles)
 
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
+clean_patient_profiles(hpo, patient_uniq_profiles)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
 onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq # IC for TERMS
@@ -229,7 +230,7 @@ summary_stats << ['DsI for uniq HP terms', hpo.get_dataset_specifity_index('uniq
 summary_stats << ['DsI for frequency weigthed HP terms', hpo.get_dataset_specifity_index('weigthed')]
 
 hpo_stats = hpo.get_profiles_terms_frequency()
-hpo_stats.map{ |stat| stat[1] = stat[1]*100}
+hpo_stats.each{ |stat| stat[1] = stat[1]*100}
 summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
 
 all_cnvs_length = []
@@ -284,9 +285,9 @@ write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 
 write_arrays4scatterplot(onto_ic_profile.values, freq_ic_profile.values, hpo_profile_ic_file, 'OntoIC', 'FreqIC') #HP profiles
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
 
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_ic_file} #{File.join(temp_folder, 'hpo_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology IC' 'HP Frequency based IC'")
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{hpo_profile_ic_file} #{File.join(temp_folder, 'hpo_profile_ics.pdf')} 'OntoIC' 'FreqIC' 'HP Ontology Profile IC' 'HP Frequency based Profile IC'")
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} #{parents_per_term_file} #{File.join(temp_folder, 'parents_per_term.pdf')} 'ProfileSize' 'ParentTerms' 'Patient HPO profile size' 'Parent HPO terms within the profile'")
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{hpo_ic_file} -o #{File.join(temp_folder, 'hpo_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology IC' --y_tag 'HP Frequency based IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_ics.pdf'))
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{hpo_profile_ic_file} -o #{File.join(temp_folder, 'hpo_profile_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology Profile IC' --y_tag 'HP Frequency based Profile IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_profile_ics.pdf'))
+system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{parents_per_term_file} -o #{File.join(temp_folder, 'parents_per_term.pdf')} -x 'ProfileSize' -y 'ParentTerms' --x_tag 'Patient HPO profile size' --y_tag 'Parent HPO terms within the profile'")
 
 ###Cohort frequency calculation
 ronto_file = File.join(temp_folder, 'hpo_freq_colour')
@@ -313,25 +314,29 @@ end
 # CLUSTER COHORT ANALYZER REPORT
 #----------------------------------
 Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do |method_name|
-  matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.txt")
+  matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.npy")
+  axis_file = matrix_filename.gsub('.npy','.lst')
   profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
   clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
-  profiles_similarity = hpo.compare_profiles(sim_type: method_name.to_sym)
-  profile_pairs = write_profile_pairs(profiles_similarity, profiles_similarity_filename)
-  similarity_matrix, axis_names = format_profiles_similarity_data_numo(profiles_similarity)
-  axis_file = matrix_filename.gsub('.txt','.lst')
-  File.open(axis_file, 'w'){|f| f.print axis_names.join("\n") }
-  Npy.save(matrix_filename, similarity_matrix)
+  if !File.exists?(matrix_filename)
+    profiles_similarity = hpo.compare_profiles(sim_type: method_name.to_sym)
+    write_profile_pairs(profiles_similarity, profiles_similarity_filename)
+    similarity_matrix, axis_names = format_profiles_similarity_data_numo(profiles_similarity)
+    File.open(axis_file, 'w'){|f| f.print axis_names.join("\n") }
+    Npy.save(matrix_filename, similarity_matrix)
+  end
   ext_var = ''
   if method_name == 'resnik'
     ext_var = '-m max'
   elsif method_name == 'lin'
     ext_var = '-m comp1'
   end
-  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -y #{axis_file} -d #{matrix_filename} -o #{File.join(temp_folder, method_name)} -H #{ext_var}")
+  out_file = File.join(temp_folder, method_name)
+  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -y #{axis_file} -d #{matrix_filename} -o #{out_file} -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
   clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_uniq_profiles)
   get_cluster_metadata(clusters_info, clusters_distribution_filename)
-  system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{clusters_distribution_filename} -o #{File.join(temp_folder, ['clusters_distribution', method_name].join('_'))} -x PatientsNumber -y HPOAverage")
+  out_file = File.join(temp_folder, ['clusters_distribution', method_name].join('_'))
+  system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{clusters_distribution_filename} -o #{out_file} -x PatientsNumber -y HPOAverage") if !File.exists?(out_file)
   clusters = translate_codes(clusters_codes, hpo)
   
   container = {

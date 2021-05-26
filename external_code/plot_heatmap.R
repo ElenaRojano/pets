@@ -3,6 +3,7 @@
 library(RcppCNPy)
 library(optparse)
 library(gplots)
+library(fastcluster)
 library("RColorBrewer")
 
 #####################
@@ -43,6 +44,8 @@ option_list <- list(
 		help="Tabulated file with information about each sample"),
 	make_option(c("-H", "--header"), type="logical", default=FALSE, action="store_true",
 		help="Indicates that file has header"),
+	make_option(c("-P", "--pdf"), type="logical", default=FALSE, action="store_true",
+		help="Indicates that file has header"),	
 	make_option(c("-p", "--pairs"), type="logical", default=FALSE, action="store_true",
 		help="Indicates if input file is a pairs-file instead a matrix"),
 	make_option(c("-y", "--npy"), type="character", default=NULL,
@@ -114,7 +117,7 @@ if(is.null(opt$matrix_transformation)){
 ######### CLUSTERING
 if(opt$same_sets){
 	quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
-	hr <- hclust(as.dist(matrix_transf), method="ward.D2")
+	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cutree(hr, h = quantValue)
 	######### EXPORT
 	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
@@ -124,10 +127,10 @@ if(opt$same_sets){
 	mdistCols = toDistances(matrix_transf, FALSE)
 	# Obtaing clustering
 	quantValue_row <- quantile(mdistRows, c(.2), na.rm = TRUE)
-	hr_row <- hclust(as.dist(mdistRows), method="ward.D2")
+	hr_row <- fastcluster::hclust(as.dist(mdistRows), method="ward.D2")
 	groups_row <- cutree(hr_row, h = quantValue_row)
 	quantValue_col <- quantile(mdistCols, c(.2), na.rm = TRUE)
-	hr_col <- hclust(as.dist(mdistCols), method="ward.D2")
+	hr_col <- fastcluster::hclust(as.dist(mdistCols), method="ward.D2")
 	groups_col <- cutree(hr_col, h = quantValue_col)
 	######### EXPORT
 	write.table(groups_row, file=paste(opt$output, '_clusters_rows.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
@@ -135,7 +138,11 @@ if(opt$same_sets){
 }
 
 ######### RENDER
-pdf(paste(opt$output, '_heatmap.pdf', sep=''))
+if(opt$pdf){
+	pdf(paste(opt$output, '_heatmap.pdf', sep=''), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
+}else{
+	png(paste(opt$output, '_heatmap.png', sep=''), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
+}
 	if(opt$same_sets){
 		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel)
