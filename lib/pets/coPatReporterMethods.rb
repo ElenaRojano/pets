@@ -1,9 +1,30 @@
 require 'numo/narray'
+require 'semtools'
 
 HPOS = 0
 CHR = 1
 START = 2
 STOP = 3
+
+def load_hpo_ontology(hpo_file, excluded_hpo_file)
+  hpo = nil
+  if !hpo_file.include?('.json')
+    if !excluded_hpo_file.nil?
+      hpo = Ontology.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(excluded_hpo_file))
+    else
+      hpo = Ontology.new(file: hpo_file, load_file: true)
+    end
+  else
+    hpo = Ontology.new
+    hpo.read(hpo_file)
+    if !excluded_hpo_file.nil?
+      hpo.add_removable_terms(read_excluded_hpo_file(excluded_hpo_file))
+      hpo.remove_removable()
+      hpo.build_index()
+    end
+  end
+  return hpo
+end
 
 def format_patient_data(patient_data, options, hpo)
   all_hpo = []
@@ -16,7 +37,6 @@ def format_patient_data(patient_data, options, hpo)
     hpos, chr, start, stop = patient_record
 
     if options[:hpo_names]
-      # hpos, pat_rejected_hpos = hpo.translate_names2codes(hpos)
       hpos, pat_rejected_hpos = hpo.translate_names(hpos)
       if !pat_rejected_hpos.empty?
         STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo NAMES '#{pat_rejected_hpos.join(',')}'. Rejected."
@@ -24,7 +44,6 @@ def format_patient_data(patient_data, options, hpo)
       end
     end
 
-    # hpos, pat_rejected_hpos = hpo.check_codes(hpos)
     hpos, pat_rejected_hpos = hpo.check_ids(hpos.map{|a| a.to_sym})
     if !pat_rejected_hpos.empty?
       STDERR.puts "WARNING: patient #{pat_id} has the unknown hpo CODES '#{pat_rejected_hpos.join(',')}'. Rejected."
@@ -34,7 +53,6 @@ def format_patient_data(patient_data, options, hpo)
       rejected_patients << pat_id
     else
       total_terms += hpos.length
-      # more_specific_childs = hpo.get_more_specific_childs_table(hpos)
       more_specific_childs = hpo.get_childs_table(hpos, true)
       terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
       suggested_childs[pat_id] = more_specific_childs  
@@ -59,6 +77,23 @@ def generate_patient_hpo_matrix(patient_data, cohort_hpos)
   return matrix
 end
 
+def generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
+  y_names = patient_data.keys
+  x_names = cohort_hpos
+  x_names_indx = {}
+  cohort_hpos.each_with_index{|hp,x| x_names_indx[hp]=x}
+  # row (y), cols (x)
+  matrix = Numo::DFloat.zeros(patient_data.length, cohort_hpos.length)
+  i = 0
+  patient_data.each do |pat_id, patient_record|
+    patient_record[HPOS].each do |hp|
+      matrix[i, x_names_indx[hp]] = 1
+    end
+    i += 1
+  end
+  return matrix, y_names, x_names
+end
+
 def write_matrix_for_R(matrix, x_names, y_names, file)
   File.open(file, 'w') do |f|
     f.puts x_names.join("\t")
@@ -68,16 +103,7 @@ def write_matrix_for_R(matrix, x_names, y_names, file)
   end
 end
 
-def process_clustered_patients(options, clustered_patients, patient_data, hpo, onto_ic, freq_ic, patient_id_type) # get ic and chromosomes
-  if options[:ic_stats] == 'freq_internal'
-    ic_file = ENV['ic_file']
-    ic_file = IC_FILE if ic_file.nil?
-    phenotype_ic = load_hpo_ci_values(ic_file)
-  elsif options[:ic_stats] == 'freq'
-    phenotype_ic = freq_ic
-  elsif options[:ic_stats] == 'onto'
-    phenotype_ic = onto_ic
-  end
+def process_clustered_patients(options, clustered_patients, patient_data, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
   all_ics = []
   top_cluster_phenotypes = []
   cluster_data_by_chromosomes = []
@@ -97,12 +123,11 @@ def process_clustered_patients(options, clustered_patients, patient_data, hpo, o
         phenotypes = patient[HPOS]
         profile_ics << get_profile_ic(phenotypes, phenotype_ic)
         if processed_clusters < options[:clusters2show_detailed_phen_data]
-          # phen_names, rejected_codes = hpo.translate_codes2names(phenotypes) #optional
           phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
           all_phens << phen_names
         end
       end
-      chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil?
+      chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil? && patient[CHR] != '-'
     end
     num_of_patients = processed_patients.length
     next if num_of_patients == 1 # Check that current cluster only has one patient with several mutations
@@ -169,21 +194,10 @@ def write_coverage_data(coverage_to_plot, coverage_to_plot_file)
 end
 
 def get_uniq_hpo_profiles(patient_data) # To avoid duplications due to more one mutation in the same patient
-  #STDERR.puts patient_data.keys.inspect
-  #Process.exit
-  #transformar a hash
   hpo_profiles = {}
-  #hpo_profiles = []
-  parsed_pats = []
   patient_data.each do |variant_id, patient_rec|
     pat_id, count = variant_id.split('_i')
-    if parsed_pats.include?(pat_id)
-      next
-    else
-      parsed_pats << pat_id
-      #hpo_profiles << patient_rec[HPOS]
-      hpo_profiles[pat_id] = patient_rec[HPOS]
-    end
+    hpo_profiles[pat_id] = patient_rec[HPOS] if !hpo_profiles.include?(pat_id)
   end
   return hpo_profiles
 end
@@ -211,45 +225,23 @@ end
 
 def cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file)
   pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
-  write_matrix_for_R(pat_hpo_matrix, cohort_hpos, patient_data.keys, matrix_file)
-  system("#{File.join(EXTERNAL_CODE, 'get_clusters.R')} #{matrix_file} #{clustered_patients_file}") if !File.exists?(clustered_patients_file)
+  if !File.exists?(matrix_file)
+    pat_hpo_matrix, pat_id, hp_id  = generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
+    x_axis_file = matrix_file.gsub('.npy','_x.lst')
+    File.open(x_axis_file, 'w'){|f| f.print hp_id.join("\n") }  
+    y_axis_file = matrix_file.gsub('.npy','_y.lst')
+    File.open(y_axis_file, 'w'){|f| f.print pat_id.join("\n") }
+    Npy.save(matrix_file, pat_hpo_matrix)
+  end
+  system("#{File.join(EXTERNAL_CODE, 'get_clusters.R')} -d #{matrix_file} -o #{clustered_patients_file} -y #{matrix_file.gsub('.npy','')}") if !File.exists?(clustered_patients_file)
   clustered_patients = load_clustered_patients(clustered_patients_file)
   return(clustered_patients)
 end
 
 def get_profile_ontology_distribution_tables(hpo)
-  cohort_ontology_levels = hpo.get_ontology_levels_from_profiles(uniq=false)
-  uniq_cohort_ontology_levels = hpo.get_ontology_levels_from_profiles
-  # hpo_ontology_levels = hpo.term_level
-  hpo_ontology_levels = hpo.get_ontology_levels
-  total_ontology_terms = hpo_ontology_levels.values.flatten.length
-  total_cohort_terms = cohort_ontology_levels.values.flatten.length
-  total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
-
-  ontology_levels = []
-  distribution_percentage = []
-  hpo_ontology_levels.each do |level, terms|
-    cohort_terms = cohort_ontology_levels[level]
-    uniq_cohort_terms = uniq_cohort_ontology_levels[level]
-    if cohort_terms.nil? || uniq_cohort_terms.nil?
-      num = 0
-      u_num = 0
-    else
-      num = cohort_terms.length
-      u_num = uniq_cohort_terms.length
-    end
-    ontology_levels << [level, terms.length, num]
-    distribution_percentage << [
-      level,
-      (terms.length.fdiv(total_ontology_terms)*100).round(3),
-      (num.fdiv(total_cohort_terms)*100).round(3),
-      (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
-    ]
-  end
-  ontology_levels.sort! { |x,y| x.first <=> y.first }
-  distribution_percentage.sort! { |x,y| x.first <=> y.first }
-  ontology_levels.unshift ["level", "ontology", "cohort"]
-  distribution_percentage.unshift ["level", "ontology", "weighted cohort", "uniq terms cohort"]
+  ontology_levels, distribution_percentage = hpo.get_profile_ontology_distribution_tables
+  ontology_levels.unshift(["level", "ontology", "cohort"])
+  distribution_percentage.unshift(["level", "ontology", "weighted cohort", "uniq terms cohort"])
   return ontology_levels, distribution_percentage
 end
 
@@ -296,6 +288,7 @@ def process_patient_data(patient_data)
 	parsed_patient_data = {}
 	patient_data.each do |patientID, metadata|
 		phenotypes, chr, start, stop = metadata
+    next if chr == '-'
 		info = [patientID, start.to_i, stop.to_i]
 		query = parsed_patient_data[chr]
 		if query.nil?

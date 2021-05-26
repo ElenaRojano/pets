@@ -109,14 +109,6 @@ def write_array(array, file_path)
 	end
 end
 
-def read_excluded_hpo_file(file)
-	excluded_hpo = []
-	File.open(file).each do |line|
-		excluded_hpo << line.chomp
-	end
-	return excluded_hpo
-end
-
 ##############################
 #OPTPARSE
 ##############################
