@@ -9,6 +9,23 @@ library("RColorBrewer")
 #####################
 ## FUNCTIONS
 #####################
+
+cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, min_clusters=3) {
+	if(method=="quantile") {
+		quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
+		groups <- cutree(clust_obj, h = quantValue)
+	} else if (method == "min_height_increase") {
+		max_clusters <- min(ncol(matrix_transf)/2, 10)
+		inert.gain <- rev(clust_obj$height)
+		intra <- rev(cumsum(rev(inert.gain)))
+		quot = intra[min_clusters:(max_clusters)]/intra[(min_clusters - 1):(max_clusters - 1)]
+		nb.clust = which.min(quot) + min_clusters -1
+		groups <- cutree(clust_obj, k = nb.clust)
+	} else {
+		q("Method not found")
+	}
+}
+
 vectdist <- function(vectA, vectB){
 	# VectA and B must have same length. Exception not handled
 	return(sqrt(sum((vectA - vectB)^2)))
@@ -59,8 +76,13 @@ option_list <- list(
 	make_option(c("-r", "--rowlabel"), type="character", default="",
 		help="Rows (y) graph label"),
 	make_option(c("-m", "--matrix_transformation"), type="character", default=NULL,
-		help="Matrix transformation parameter. Options: comp1, inverse, max.")
-
+		help="Matrix transformation parameter. Options: comp1, inverse, max."),
+#	make_option(c("-C", "--min_clusters"), type="integer", default=NULL,
+#		help="Minimum number of clusters to obtain"),
+#	make_option(c("-M", "--max_clusters"), type="integer", default=NULL,
+#		help="Maximum number of clusters to obtain"),
+	make_option(c("-t", "--tree_cut_method"), type="character", default="quantile",
+		help="Method to use to determine number of clusters in which to divide data")
 )
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -116,9 +138,8 @@ if(is.null(opt$matrix_transformation)){
 
 ######### CLUSTERING
 if(opt$same_sets){
-	quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
 	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
-	groups <- cutree(hr, h = quantValue)
+	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method)
 	######### EXPORT
 	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
 }else{
@@ -144,8 +165,10 @@ if(opt$pdf){
 	png(paste(opt$output, '_heatmap.png', sep=''), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
 }
 	if(opt$same_sets){
+		group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups)))
+		group_colours_arranged <- group_colours[groups]
 		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
-					xlab = opt$collabel, ylab = opt$rowlabel)
+					xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
 	}else{
 		heatmap.2(data, Rowv=as.dendrogram(hr_row), Colv=as.dendrogram(hr_col), trace="none", col=brewer.pal(11,"RdBu"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel)
