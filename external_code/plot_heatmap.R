@@ -10,11 +10,11 @@ library("RColorBrewer")
 ## FUNCTIONS
 #####################
 
-cluster_obj_to_groups <- function(matrix_transf, clust_obj, method) {
+cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, minProportionCluster) {
 	max_clusters <- ceiling(ncol(matrix_transf)/2)
 	min_clusters <- ceiling(ncol(matrix_transf)/10)
-	print("max");print(max_clusters)
-	print("min");print(min_clusters)
+	# print("max");print(max_clusters)
+	# print("min");print(min_clusters)
 	if(method=="quantile") {
 		quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
 		groups <- cutree(clust_obj, h = quantValue)
@@ -27,9 +27,19 @@ cluster_obj_to_groups <- function(matrix_transf, clust_obj, method) {
 	} else if (method == "silhouette") {		
 		# res <- NbClust::NbClust(diss=as.dist(matrix_transf), distance = NULL, min.nc=min_clusters, max.nc=max_clusters,  method = "ward.D2", index = "silhouette")
 		# groups <- res$Best.partition
+	} else if (method == "dinamic") {
+		minClusterSize <- 5
+		data_minClusterSize <- ceiling(ncol(matrix_transf) * minProportionCluster)
+		minClusterSize <- max(c(minClusterSize, data_minClusterSize))
+		# print(minClusterSize)
+		groups <- dynamicTreeCut::cutreeDynamic(dendro = clust_obj, distM = matrix_transf,
+														deepSplit = 2, pamRespectsDendro = FALSE,
+														minClusterSize = minClusterSize)
+		# save(groups, file = "./debug.RData")
 	} else {
 		error("Method not found")
 	}
+	return(groups)
 }
 
 vectdist <- function(vectA, vectB){
@@ -83,6 +93,8 @@ option_list <- list(
 		help="Rows (y) graph label"),
 	make_option(c("-m", "--matrix_transformation"), type="character", default=NULL,
 		help="Matrix transformation parameter. Options: comp1, inverse, max."),
+	make_option(c("-M","--minProportionCluster"), type="double", default=0.05,
+		help="Minimun percentage of element per cluster."),
 #	make_option(c("-C", "--min_clusters"), type="integer", default=NULL,
 #		help="Minimum number of clusters to obtain"),
 #	make_option(c("-M", "--max_clusters"), type="integer", default=NULL,
@@ -145,7 +157,7 @@ if(is.null(opt$matrix_transformation)){
 ######### CLUSTERING
 if(opt$same_sets){
 	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
-	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method)
+	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method, minProportionCluster = opt$minProportionCluster)
 	######### EXPORT
 	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
 }else{
@@ -173,8 +185,9 @@ if(opt$pdf){
 }
 	if(opt$same_sets){
 		group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups)))
-		print("cluster number:")
-		print(length(unique(groups)))
+		# print("cluster number:")
+		# print(length(unique(groups)))
+		# print(length(unique(group_colours)))
 		group_colours_arranged <- group_colours[groups]
 		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
@@ -184,5 +197,5 @@ if(opt$pdf){
 
 	}
 dev.off()
-save.image("test.RData")
+# save.image("test.RData")
 
