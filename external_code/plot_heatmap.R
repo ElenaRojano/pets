@@ -10,19 +10,25 @@ library("RColorBrewer")
 ## FUNCTIONS
 #####################
 
-cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, min_clusters=3) {
+cluster_obj_to_groups <- function(matrix_transf, clust_obj, method) {
+	max_clusters <- ceiling(ncol(matrix_transf)/2)
+	min_clusters <- ceiling(ncol(matrix_transf)/10)
+	print("max");print(max_clusters)
+	print("min");print(min_clusters)
 	if(method=="quantile") {
 		quantValue <- quantile(matrix_transf, c(.2), na.rm = TRUE)
 		groups <- cutree(clust_obj, h = quantValue)
 	} else if (method == "min_height_increase") {
-		max_clusters <- min(ncol(matrix_transf)/2, 10)
 		inert.gain <- rev(clust_obj$height)
 		intra <- rev(cumsum(rev(inert.gain)))
-		quot = intra[min_clusters:(max_clusters)]/intra[(min_clusters - 1):(max_clusters - 1)]
-		nb.clust = which.min(quot) + min_clusters -1
+		quot <- intra[min_clusters:(max_clusters)]/intra[(min_clusters - 1):(max_clusters - 1)]
+		nb.clust <- which.min(quot) + min_clusters -1
 		groups <- cutree(clust_obj, k = nb.clust)
+	} else if (method == "silhouette") {		
+		# res <- NbClust::NbClust(diss=as.dist(matrix_transf), distance = NULL, min.nc=min_clusters, max.nc=max_clusters,  method = "ward.D2", index = "silhouette")
+		# groups <- res$Best.partition
 	} else {
-		q("Method not found")
+		error("Method not found")
 	}
 }
 
@@ -149,7 +155,8 @@ if(opt$same_sets){
 	# Obtaing clustering
 	quantValue_row <- quantile(mdistRows, c(.2), na.rm = TRUE)
 	hr_row <- fastcluster::hclust(as.dist(mdistRows), method="ward.D2")
-	groups_row <- cutree(hr_row, h = quantValue_row)
+	groups_row <- cluster_obj_to_groups(mdistRows, hr, opt$tree_cut_method)
+
 	quantValue_col <- quantile(mdistCols, c(.2), na.rm = TRUE)
 	hr_col <- fastcluster::hclust(as.dist(mdistCols), method="ward.D2")
 	groups_col <- cutree(hr_col, h = quantValue_col)
@@ -166,6 +173,8 @@ if(opt$pdf){
 }
 	if(opt$same_sets){
 		group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups)))
+		print("cluster number:")
+		print(length(unique(groups)))
 		group_colours_arranged <- group_colours[groups]
 		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 					xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
@@ -175,4 +184,5 @@ if(opt$pdf){
 
 	}
 dev.off()
+save.image("test.RData")
 
