@@ -160,7 +160,6 @@ if(opt$same_sets){
 	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method, minProportionCluster = opt$minProportionCluster)
 	######### EXPORT
-	save(groups, file = "./debug.RData")
 	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
 }else{
 	# Calc similitudes of rows
