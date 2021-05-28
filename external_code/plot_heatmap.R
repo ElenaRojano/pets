@@ -27,7 +27,7 @@ cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, minProportio
 	} else if (method == "silhouette") {		
 		# res <- NbClust::NbClust(diss=as.dist(matrix_transf), distance = NULL, min.nc=min_clusters, max.nc=max_clusters,  method = "ward.D2", index = "silhouette")
 		# groups <- res$Best.partition
-	} else if (method == "dinamic") {
+	} else if (method == "dynamic") {
 		minClusterSize <- 5
 		data_minClusterSize <- ceiling(ncol(matrix_transf) * minProportionCluster)
 		minClusterSize <- max(c(minClusterSize, data_minClusterSize))
@@ -35,7 +35,7 @@ cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, minProportio
 		groups <- dynamicTreeCut::cutreeDynamic(dendro = clust_obj, distM = matrix_transf,
 														deepSplit = 2, pamRespectsDendro = FALSE,
 														minClusterSize = minClusterSize)
-		# save(groups, file = "./debug.RData")
+		names(groups) <- colnames(matrix_transf)
 	} else {
 		error("Method not found")
 	}
@@ -159,7 +159,8 @@ if(opt$same_sets){
 	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method, minProportionCluster = opt$minProportionCluster)
 	######### EXPORT
-	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE)
+	save(groups, file = "./debug.RData")
+	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
 }else{
 	# Calc similitudes of rows
 	mdistRows = toDistances(matrix_transf)
