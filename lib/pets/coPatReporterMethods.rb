@@ -482,6 +482,7 @@ def parse_clusters_file(clusters_file, patient_profiles)
     line.chomp!
     patientID, clusterID = line.split("\t")
     patientHPOProfile = patient_profiles[patientID]
+   #raise(patientID) if patientHPOProfile.nil?
     query = clusters_info[clusterID]
     if query.nil? 
       clusters_info[clusterID] = {patientID => patientHPOProfile}
@@ -511,23 +512,20 @@ def get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 end
 
 def get_cluster_metadata(clusters_info, output_file)
-  distribution_average_phenotypes_by_patients_cluster = []
+  average_hp_per_pat_distribution = []
   tmp = []
-  total_clusters = clusters_info.keys.length
-  average_patients_per_cluster = clusters_info.values.map{|a| a.keys.length}.inject(0){|i, sum| i + sum}.fdiv(total_clusters)
-  clusters_info.values.each do |i|
-      patients_by_cluster = i.keys.length
-      num_phenotypes_in_cluster_by_patients_ary = i.values.map{|a| a.length}
-      num_phenotypes_in_cluster_by_patients_ave = num_phenotypes_in_cluster_by_patients_ary.sum.fdiv(num_phenotypes_in_cluster_by_patients_ary.length)
-      distribution_average_phenotypes_by_patients_cluster << [patients_by_cluster, num_phenotypes_in_cluster_by_patients_ave]
-      tmp << num_phenotypes_in_cluster_by_patients_ary
+  clusters_info.each do |cl_id, pat_info|
+      hp_per_pat_in_clust = pat_info.values.map{|a| a.length}
+      hp_per_pat_ave = hp_per_pat_in_clust.sum.fdiv(hp_per_pat_in_clust.length)
+      average_hp_per_pat_distribution << [pat_info.length, hp_per_pat_ave]
+      tmp << hp_per_pat_in_clust
   end
+  total_clusters = clusters_info.length
   average_phenotypes_by_cluster = tmp.flatten.sum.fdiv(total_clusters)
   File.open(output_file, 'w') do |f|
     f.puts "#{'PatientsNumber'}\t#{'HPOAverage'}"
-    distribution_average_phenotypes_by_patients_cluster.each do |patient_num, ave|
+    average_hp_per_pat_distribution.each do |patient_num, ave|
       f.puts "#{patient_num}\t#{ave}"
     end
   end
-  #return distribution_average_phenotypes_by_patients_cluster
 end

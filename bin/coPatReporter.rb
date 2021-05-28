@@ -85,7 +85,7 @@ OptionParser.new do |opts|
     options[:end_col] = data
   end
 
-  options[:minClusterProportion] = 0.05
+  options[:minClusterProportion] = 0.01
   opts.on("-M", "--minClusterProportion FLOAT", "Minimum percentage of patients per cluster") do |data|
     options[:minClusterProportion] = data.to_f
   end
@@ -337,7 +337,7 @@ Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do
     ext_var = '-m comp1'
   end
   out_file = File.join(temp_folder, method_name)
-  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -y #{axis_file} -d #{matrix_filename} -o #{out_file} -M #{options[:minClusterProportion]} -t dinamic -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
+  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -y #{axis_file} -d #{matrix_filename} -o #{out_file} -M #{options[:minClusterProportion]} -t dynamic -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
   clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_uniq_profiles)
   get_cluster_metadata(clusters_info, clusters_distribution_filename)
   out_file = File.join(temp_folder, ['clusters_distribution', method_name].join('_'))
