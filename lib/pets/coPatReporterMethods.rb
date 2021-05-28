@@ -482,7 +482,6 @@ def parse_clusters_file(clusters_file, patient_profiles)
     line.chomp!
     patientID, clusterID = line.split("\t")
     patientHPOProfile = patient_profiles[patientID]
-   #raise(patientID) if patientHPOProfile.nil?
     query = clusters_info[clusterID]
     if query.nil? 
       clusters_info[clusterID] = {patientID => patientHPOProfile}
