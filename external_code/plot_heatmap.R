@@ -28,16 +28,17 @@ cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, minProportio
 		# res <- NbClust::NbClust(diss=as.dist(matrix_transf), distance = NULL, min.nc=min_clusters, max.nc=max_clusters,  method = "ward.D2", index = "silhouette")
 		# groups <- res$Best.partition
 	} else if (method == "dynamic") {
-		minClusterSize <- 5
+		minClusterSize <- 2
 		data_minClusterSize <- ceiling(ncol(matrix_transf) * minProportionCluster)
 		minClusterSize <- max(c(minClusterSize, data_minClusterSize))
 		# print(minClusterSize)
-		groups <- dynamicTreeCut::cutreeDynamic(dendro = clust_obj, distM = matrix_transf,
-														deepSplit = 2, pamRespectsDendro = FALSE,
+		groups <- dynamicTreeCut::cutreeDynamic(dendro = clust_obj, 
+												distM = matrix_transf,
+														deepSplit = 2, pamRespectsDendro = TRUE,
 														minClusterSize = minClusterSize)
 		names(groups) <- colnames(matrix_transf)
 	} else {
-		error("Method not found")
+		stop("Method not found")
 	}
 	return(groups)
 }
