@@ -27,11 +27,7 @@ def load_hpo_ontology(hpo_file, excluded_hpo_file)
 end
 
 def format_patient_data(patient_data, options, hpo)
-  all_hpo = []
   rejected_hpos = []
-  suggested_childs = {}
-  total_terms = 0
-  terms_with_more_specific_childs = 0
   rejected_patients = []
   patient_data.each do |pat_id, patient_record|
     hpos, chr, start, stop = patient_record
@@ -52,15 +48,25 @@ def format_patient_data(patient_data, options, hpo)
     if hpos.empty?
       rejected_patients << pat_id
     else
-      total_terms += hpos.length
-      more_specific_childs = hpo.get_childs_table(hpos, true)
-      terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
-      suggested_childs[pat_id] = more_specific_childs  
-      all_hpo.concat(hpos)
       patient_record[HPOS] = hpos
     end
   end
-  return all_hpo.uniq, suggested_childs, rejected_hpos.uniq, terms_with_more_specific_childs.fdiv(total_terms), rejected_patients
+  return rejected_hpos.uniq, rejected_patients
+end
+
+def compute_hpo_list_and_childs(patient_data, hpo)
+  all_hpo = []
+  suggested_childs = {}
+  total_terms = 0
+  terms_with_more_specific_childs = 0
+  patient_data.each do |pat_id, hpos|
+    total_terms += hpos.length
+    more_specific_childs = hpo.get_childs_table(hpos, true)
+    terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
+    suggested_childs[pat_id] = more_specific_childs  
+    all_hpo.concat(hpos)
+  end
+  return all_hpo.uniq, suggested_childs, terms_with_more_specific_childs.fdiv(total_terms)
 end
 
 def clean_patient_profiles(hpo, patient_profiles)
@@ -82,8 +88,7 @@ end
 def generate_patient_hpo_matrix(patient_data, cohort_hpos)
   matrix = []
   n = cohort_hpos.length
-  patient_data.each do |pat_id, patient_record|
-    pat_hpos = patient_record[HPOS]
+  patient_data.each do |pat_id, pat_hpos|
     vector = Array.new(n, 0)
     pat_hpos.each do |hpo|
       vector[cohort_hpos.index(hpo)] = 1
@@ -101,8 +106,8 @@ def generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
   # row (y), cols (x)
   matrix = Numo::DFloat.zeros(patient_data.length, cohort_hpos.length)
   i = 0
-  patient_data.each do |pat_id, patient_record|
-    patient_record[HPOS].each do |hp|
+  patient_data.each do |pat_id, pat_hpos|
+    pat_hpos.each do |hp|
       matrix[i, x_names_indx[hp]] = 1
     end
     i += 1
@@ -220,8 +225,7 @@ end
 
 def get_patient_ids(patient_data) # To aviod duplications due to more one mutation in the same patient
   ids = []
-  patient_ids = patient_data.keys
-  patient_ids.each do |pat_id|
+  patient_data.each do |pat_id, hpos|
     id, count = pat_id.split('_i')
     ids << id
   end
@@ -230,17 +234,16 @@ end
 
 def get_summary_stats(patient_data, rejected_patients, cohort_hpos, hpo)
   stats = []
-  stats << ['Unique HPOs', cohort_hpos.length]
-  stats << ['Number of patients in the cohort', get_patient_ids(patient_data).length]
+  stats << ['Unique HPO terms', cohort_hpos.length]
+  stats << ['Cohort size', get_patient_ids(patient_data).length]
   stats << ['Rejected patients by empty profile', rejected_patients.length]
   # stats << ['HPOs per patient (average)', hpo.get_profile_mean_length]
   stats << ['HPOs per patient (average)', hpo.get_profiles_mean_size]
-  stats << ['HPOs for patient in percentile 90', hpo.get_profile_length_at_percentile(perc=90)]
+  stats << ['HPO terms per patient: percentile 90', hpo.get_profile_length_at_percentile(perc=90)]
   return stats
 end
 
 def cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file)
-  pat_hpo_matrix = generate_patient_hpo_matrix(patient_data, cohort_hpos)
   if !File.exists?(matrix_file)
     pat_hpo_matrix, pat_id, hp_id  = generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
     x_axis_file = matrix_file.gsub('.npy','_x.lst')

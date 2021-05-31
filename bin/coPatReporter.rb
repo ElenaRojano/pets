@@ -196,7 +196,7 @@ hpo = load_hpo_ontology(hpo_file, options[:excluded_hpo])
 
 patient_data = load_patient_cohort(options)
 
-cohort_hpos, suggested_childs, rejected_hpos, fraction_terms_specific_childs, rejected_patients = format_patient_data(patient_data, options, hpo)
+rejected_hpos, rejected_patients = format_patient_data(patient_data, options, hpo)
 File.open(rejected_file, 'w'){|f| f.puts rejected_patients.join("\n")}
 patient_data.select!{|pat_id, patient_record| !rejected_patients.include?(pat_id)}
 patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
@@ -204,6 +204,7 @@ hpo.load_profiles(patient_uniq_profiles)
 
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
 clean_patient_profiles(hpo, patient_uniq_profiles)
+cohort_hpos, suggested_childs, fraction_terms_specific_childs = compute_hpo_list_and_childs(patient_uniq_profiles, hpo)
 ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
 
 onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq # IC for TERMS
@@ -224,13 +225,13 @@ else
     phenotype_ic = onto_ic
   end
 end
-clustered_patients = cluster_patients(patient_data, cohort_hpos, matrix_file, clustered_patients_file) 
+clustered_patients = cluster_patients(patient_uniq_profiles, cohort_hpos, matrix_file, clustered_patients_file) 
 
 all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, phenotype_ic, options[:pat_id_col])
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
-summary_stats = get_summary_stats(patient_data, rejected_patients, cohort_hpos, hpo)
-summary_stats << ['Percentage of defined HPOs that have more specific childs', (fraction_terms_specific_childs * 100).round(4)]
+summary_stats = get_summary_stats(patient_uniq_profiles, rejected_patients, cohort_hpos, hpo)
+summary_stats << ['Percentage of HPO with more specific children', (fraction_terms_specific_childs * 100).round(4)]
 summary_stats << ['DsI for uniq HP terms', hpo.get_dataset_specifity_index('uniq')]
 summary_stats << ['DsI for frequency weigthed HP terms', hpo.get_dataset_specifity_index('weigthed')]
 
@@ -264,16 +265,16 @@ if !options[:chromosome_col].nil?
     
     ###1. Process CNVs
     raw_coverage, n_cnv, nt, pats_per_region = calculate_coverage(sors)
-    summary_stats << ['Number of genome windows', n_cnv]
+    summary_stats << ['Average variant size', cnv_size_average.round(4)]
     summary_stats << ['Nucleotides affected by mutations', nt]
-    summary_stats << ['Patient average per region', pats_per_region.round(4)]
-    summary_stats << ['CNV size average', cnv_size_average.round(4)]
+    summary_stats << ['Number of genome windows', n_cnv]
+    summary_stats << ['Mean patients per genome window', pats_per_region.round(4)]
     coverage_to_plot = get_final_coverage(raw_coverage, options[:bin_size])
 
     ###2. Process SORs
     raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, options[:patients_filter] - 1)
+    summary_stats << ["Number of genome window shared by >= #{options[:patients_filter]} patients", n_sor]
     summary_stats << ["Number of patients with at least 1 SOR", total_patients_sharing_sors.uniq.length]
-    summary_stats << ["Number of SORs with >= #{options[:patients_filter]} patients", n_sor]
     summary_stats << ['Nucleotides affected by mutations', nt]
     # summary_stats << ['Patient average per region', pats_per_region]
     sor_coverage_to_plot = get_final_coverage(raw_sor_coverage, options[:bin_size])
