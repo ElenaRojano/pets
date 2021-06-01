@@ -58,7 +58,7 @@ calc_sim_between_groups <- function(matrix_transf, groups) {
 		FUN=get_matrix_subset_mean, matrix_transf=matrix_transf, groups=groups)
 	group_sim <- matrix(nrow = n_groups, ncol = n_groups, dimnames=list(unique_groups,unique_groups))
 	group_sim[lower.tri(group_sim)] <- subset_means
-	print(1-group_sim)
+	# print(1-group_sim)
 	group_sim
 }
 
@@ -158,7 +158,7 @@ if(opt$pairs){ # Load pairs
 		colnames(data) <- axis_labels$V1
 		rownames(data) <- axis_labels$V1
 	}else{
-		data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names="pat"))
+		data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names= 1, check.names = FALSE))
 	}
 }
 
