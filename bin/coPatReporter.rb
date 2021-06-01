@@ -6,7 +6,6 @@ EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))
 HPO_FILE = File.join(EXTERNAL_DATA, 'hp.json')
 IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
-CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'benchmark'
@@ -100,6 +99,11 @@ OptionParser.new do |opts|
     options[:clusters2graph] = data.to_i
   end
 
+  options[:genome_assembly] = 'hg38'
+  opts.on("-G", "--genome_assembly STRING", "Genome assembly version. Please choose between hg19 and hg38. Default hg38") do |data|
+    options[:genome_assembly] = data
+  end
+
   options[:header] = true
   #chr\tstart\tstop
   opts.on("-H", "--header", "Set if the file has a line header. Default true") do 
@@ -174,6 +178,15 @@ end.parse!
 ##########################
 #MAIN
 ##########################
+
+if options[:genome_assembly] == 'hg19' || options[:genome_assembly] == 'hg37'
+  CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
+elsif options[:genome_assembly] == 'hg38'
+  CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg38.txt')
+else
+  abort('Wrong human genome assembly. Please choose between hg19 or hg38.')
+end
+
 output_folder = File.dirname(options[:output_file])
 detailed_profile_evaluation_file = File.join(output_folder, 'detailed_hpo_profile_evaluation.csv')
 rejected_file = File.join(output_folder, 'rejected_records.txt')
