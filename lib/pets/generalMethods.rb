@@ -3,6 +3,15 @@ require 'net/ftp'
 require 'net/http'
 require 'zlib'
 require 'json'
+require 'benchmark'
+
+def system_call(code_folder, script, args_string)
+	cmd = File.join(code_folder, script) + ' ' + args_string
+	puts "==> #{cmd}"
+	Benchmark.bm do |x|
+		x.report{	system(cmd) }
+	end
+end
 
 def read_excluded_hpo_file(file)
 	excluded_hpo = []

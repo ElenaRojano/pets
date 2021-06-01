@@ -199,7 +199,7 @@ patient_data = load_patient_cohort(options)
 rejected_hpos, rejected_patients = format_patient_data(patient_data, options, hpo)
 File.open(rejected_file, 'w'){|f| f.puts rejected_patients.join("\n")}
 patient_data.select!{|pat_id, patient_record| !rejected_patients.include?(pat_id)}
-patient_uniq_profiles = get_uniq_hpo_profiles(patient_data)
+patient_uniq_profiles, equivalence = get_uniq_hpo_profiles(patient_data)
 hpo.load_profiles(patient_uniq_profiles)
 
 profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
@@ -226,8 +226,7 @@ else
   end
 end
 clustered_patients = cluster_patients(patient_uniq_profiles, cohort_hpos, matrix_file, clustered_patients_file) 
-
-all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_data, hpo, phenotype_ic, options[:pat_id_col])
+all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, options[:pat_id_col])
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
 summary_stats = get_summary_stats(patient_uniq_profiles, rejected_patients, cohort_hpos, hpo)
@@ -291,28 +290,27 @@ write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 
 write_arrays4scatterplot(onto_ic_profile.values, freq_ic_profile.values, hpo_profile_ic_file, 'OntoIC', 'FreqIC') #HP profiles
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
 
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{hpo_ic_file} -o #{File.join(temp_folder, 'hpo_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology IC' --y_tag 'HP Frequency based IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_ics.pdf'))
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{hpo_profile_ic_file} -o #{File.join(temp_folder, 'hpo_profile_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology Profile IC' --y_tag 'HP Frequency based Profile IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_profile_ics.pdf'))
-system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot_simple.R')} -i #{parents_per_term_file} -o #{File.join(temp_folder, 'parents_per_term.pdf')} -x 'ProfileSize' -y 'ParentTerms' --x_tag 'Patient HPO profile size' --y_tag 'Parent HPO terms within the profile'")
+system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{hpo_ic_file} -o #{File.join(temp_folder, 'hpo_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology IC' --y_tag 'HP Frequency based IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_ics.pdf'))
+system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{hpo_profile_ic_file} -o #{File.join(temp_folder, 'hpo_profile_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology Profile IC' --y_tag 'HP Frequency based Profile IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_profile_ics.pdf'))
+system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{parents_per_term_file} -o #{File.join(temp_folder, 'parents_per_term.pdf')} -x 'ProfileSize' -y 'ParentTerms' --x_tag 'Patient HPO profile size' --y_tag 'Parent HPO terms within the profile'")
 
 ###Cohort frequency calculation
 ronto_file = File.join(temp_folder, 'hpo_freq_colour')
-system("#{File.join(EXTERNAL_CODE, 'ronto_plotter.R')} -i #{hpo_frequency_file} -o #{ronto_file} --root_node #{options[:root_node]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
+system_call(EXTERNAL_CODE, 'ronto_plotter.R', "-i #{hpo_frequency_file} -o #{ronto_file} --root_node #{options[:root_node]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
 
 write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
-system("#{File.join(EXTERNAL_CODE, 'plot_boxplot.R')} #{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
+system_call(EXTERNAL_CODE, 'plot_boxplot.R', "#{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
 
 if !options[:chromosome_col].nil?
   write_cluster_chromosome_data(cluster_data_by_chromosomes, cluster_chromosome_data_file, options[:clusters2graph])
-  system("#{File.join(EXTERNAL_CODE, 'plot_scatterplot.R')} #{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
+  system_call(EXTERNAL_CODE, 'plot_scatterplot.R', "#{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
   if options[:coverage_analysis]
     ###1. Process CNVs
     write_coverage_data(coverage_to_plot, coverage_to_plot_file)
-    cmd = "#{File.join(EXTERNAL_CODE, 'plot_area.R')} -d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t CNV"
-    system(cmd)
+    system_call(EXTERNAL_CODE, 'plot_area.R', "-d #{coverage_to_plot_file} -o #{temp_folder}/coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t CNV")
     ###2. Process SORs
     write_coverage_data(sor_coverage_to_plot, sor_coverage_to_plot_file)
-    system("#{File.join(EXTERNAL_CODE, 'plot_area.R')} -d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t SOR")    
+    system_call(EXTERNAL_CODE, 'plot_area.R', "-d #{sor_coverage_to_plot_file} -o #{temp_folder}/sor_coverage_plot -x V2 -y V3 -f V1 -H -m #{CHR_SIZE} -t SOR")
   end
 end
 
@@ -338,11 +336,11 @@ Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do
     ext_var = '-m comp1'
   end
   out_file = File.join(temp_folder, method_name)
-  system("#{File.join(EXTERNAL_CODE, 'plot_heatmap.R')} -y #{axis_file} -d #{matrix_filename} -o #{out_file} -M #{options[:minClusterProportion]} -t dynamic -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
+  system_call(EXTERNAL_CODE, 'plot_heatmap.R', "-y #{axis_file} -d #{matrix_filename} -o #{out_file} -M #{options[:minClusterProportion]} -t dynamic -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
   clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_uniq_profiles)
   get_cluster_metadata(clusters_info, clusters_distribution_filename)
   out_file = File.join(temp_folder, ['clusters_distribution', method_name].join('_'))
-  system("#{File.join(EXTERNAL_CODE, 'xyplot_graph.R')} -d #{clusters_distribution_filename} -o #{out_file} -x PatientsNumber -y HPOAverage") if !File.exists?(out_file)
+  system_call(EXTERNAL_CODE, 'xyplot_graph.R', "-d #{clusters_distribution_filename} -o #{out_file} -x PatientsNumber -y HPOAverage") if !File.exists?(out_file)
   clusters = translate_codes(clusters_codes, hpo)
   
   container = {

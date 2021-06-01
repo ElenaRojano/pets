@@ -124,7 +124,7 @@ def write_matrix_for_R(matrix, x_names, y_names, file)
   end
 end
 
-def process_clustered_patients(options, clustered_patients, patient_data, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
+def process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
   all_ics = []
   top_cluster_phenotypes = []
   cluster_data_by_chromosomes = []
@@ -137,18 +137,19 @@ def process_clustered_patients(options, clustered_patients, patient_data, hpo, p
     profile_ics = []
     processed_patients = []
     patient_ids.each do |pat_id|
-      patient = patient_data[pat_id]  
-      pat_id = pat_id.gsub(/_i\d+$/,'') if patient_id_type != 'generated'
-      if !processed_patients.include?(pat_id) # Check that current cluster member is not an additional mutation of a previous patient
-        processed_patients << pat_id 
-        phenotypes = patient[HPOS]
-        profile_ics << get_profile_ic(phenotypes, phenotype_ic)
-        if processed_clusters < options[:clusters2show_detailed_phen_data]
-          phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
-          all_phens << phen_names
-        end
+      phenotypes = patient_uniq_profiles[pat_id]  
+      #pat_id = pat_id.gsub(/_i\d+$/,'') if patient_id_type != 'generated'
+      processed_patients << pat_id 
+      profile_ics << get_profile_ic(phenotypes, phenotype_ic)
+      if processed_clusters < options[:clusters2show_detailed_phen_data]
+        phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
+        all_phens << phen_names
       end
-      chrs[patient[CHR]] += 1 if !options[:chromosome_col].nil? && patient[CHR] != '-'
+      variants = equivalence[pat_id]
+      variants.each do |variant|
+        variant_data = patient_data[variant]
+        chrs[variant_data[CHR]] += 1 if !options[:chromosome_col].nil? && variant_data[CHR] != '-'
+      end
     end
     num_of_patients = processed_patients.length
     next if num_of_patients == 1 # Check that current cluster only has one patient with several mutations
@@ -162,7 +163,6 @@ def process_clustered_patients(options, clustered_patients, patient_data, hpo, p
     end
     processed_clusters += 1
   end
-  # STDERR.puts cluster_data_by_chromosomes.inspect
   return all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients
 end
 
@@ -216,11 +216,18 @@ end
 
 def get_uniq_hpo_profiles(patient_data) # To avoid duplications due to more one mutation in the same patient
   hpo_profiles = {}
+  equivalence = {}
   patient_data.each do |variant_id, patient_rec|
     pat_id, count = variant_id.split('_i')
-    hpo_profiles[pat_id] = patient_rec[HPOS] if !hpo_profiles.include?(pat_id)
+    hpo_profiles[pat_id] = patient_rec[HPOS]
+    query =  equivalence[pat_id]
+    if query.nil?
+      equivalence[pat_id] = [variant_id]
+    else
+      query << variant_id
+    end
   end
-  return hpo_profiles
+  return hpo_profiles, equivalence
 end
 
 def get_patient_ids(patient_data) # To aviod duplications due to more one mutation in the same patient
