@@ -120,7 +120,9 @@ option_list <- list(
 #	make_option(c("-M", "--max_clusters"), type="integer", default=NULL,
 #		help="Maximum number of clusters to obtain"),
 	make_option(c("-t", "--tree_cut_method"), type="character", default="quantile",
-		help="Method to use to determine number of clusters in which to divide data")
+		help="Method to use to determine number of clusters in which to divide data"),
+	make_option(c("-D", "--diagonal_replace"), type="numeric", default=NULL,
+		help="Number to replace diagonal values in the input matrx")
 )
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -158,6 +160,10 @@ if(opt$pairs){ # Load pairs
 	}else{
 		data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names="pat"))
 	}
+}
+
+if(!is.null(opt$diagonal_replace)){
+	diag(data) <- opt$diagonal_replace
 }
 
 ######### NORMALIZE
