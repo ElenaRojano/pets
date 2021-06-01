@@ -126,6 +126,7 @@ end
 
 def process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
   all_ics = []
+  all_lengths = []
   top_cluster_phenotypes = []
   cluster_data_by_chromosomes = []
   multi_chromosome_patients = 0
@@ -135,12 +136,14 @@ def process_clustered_patients(options, clustered_patients, patient_uniq_profile
     chrs = Hash.new(0)
     all_phens = []
     profile_ics = []
+    profile_lengths = []
     processed_patients = []
     patient_ids.each do |pat_id|
       phenotypes = patient_uniq_profiles[pat_id]  
       #pat_id = pat_id.gsub(/_i\d+$/,'') if patient_id_type != 'generated'
       processed_patients << pat_id 
       profile_ics << get_profile_ic(phenotypes, phenotype_ic)
+      profile_lengths << phenotypes.length
       if processed_clusters < options[:clusters2show_detailed_phen_data]
         phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
         all_phens << phen_names
@@ -155,6 +158,7 @@ def process_clustered_patients(options, clustered_patients, patient_uniq_profile
     next if num_of_patients == 1 # Check that current cluster only has one patient with several mutations
     top_cluster_phenotypes << all_phens if processed_clusters < options[:clusters2show_detailed_phen_data]
     all_ics << profile_ics
+    all_lengths << profile_lengths
     if !options[:chromosome_col].nil?
       multi_chromosome_patients += num_of_patients if chrs.length > 1
       chrs.each do |chr, count|
@@ -163,7 +167,7 @@ def process_clustered_patients(options, clustered_patients, patient_uniq_profile
     end
     processed_clusters += 1
   end
-  return all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients
+  return all_ics, all_lengths, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients
 end
 
 def get_profile_ic(hpo_names, phenotype_ic)
@@ -179,14 +183,14 @@ def get_profile_ic(hpo_names, phenotype_ic)
   return ic.fdiv(profile_length)
 end
 
-def write_cluster_ic_data(all_ics, cluster_ic_data_file, limit)
+def write_cluster_ic_data(all_ics, profile_lengths, cluster_ic_data_file, limit)
   File.open(cluster_ic_data_file, 'w') do |f|
-    f.puts %w[cluster_id ic].join("\t")
+    f.puts %w[cluster_id ic Plen].join("\t")
     all_ics.each_with_index do |cluster_ics, i|
       break if i == limit
       cluster_length = cluster_ics.length
-      cluster_ics.each do |clust_ic|
-        f.puts "#{cluster_length}_#{i}\t#{clust_ic}"
+      cluster_ics.each_with_index do |clust_ic, j|
+        f.puts "#{cluster_length}_#{i}\t#{clust_ic}\t#{profile_lengths[i][j]}"
       end
     end
   end

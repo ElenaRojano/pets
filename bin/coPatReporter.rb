@@ -241,7 +241,7 @@ else
   end
 end
 clustered_patients = cluster_patients(patient_uniq_profiles, cohort_hpos, matrix_file, clustered_patients_file) 
-all_ics, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, options[:pat_id_col])
+all_ics, profile_lengths, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, options[:pat_id_col])
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
 summary_stats = get_summary_stats(patient_uniq_profiles, rejected_patients, cohort_hpos, hpo)
@@ -313,8 +313,8 @@ system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{parents_per_term_f
 ronto_file = File.join(temp_folder, 'hpo_freq_colour')
 system_call(EXTERNAL_CODE, 'ronto_plotter.R', "-i #{hpo_frequency_file} -o #{ronto_file} --root_node #{options[:root_node]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
 
-write_cluster_ic_data(all_ics, cluster_ic_data_file, options[:clusters2graph])
-system_call(EXTERNAL_CODE, 'plot_boxplot.R', "#{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient'")
+write_cluster_ic_data(all_ics, profile_lengths, cluster_ic_data_file, options[:clusters2graph])
+system_call(EXTERNAL_CODE, 'plot_boxplot.R', "#{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient' 'Plen' 'Profile size'")
 
 if !options[:chromosome_col].nil?
   write_cluster_chromosome_data(cluster_data_by_chromosomes, cluster_chromosome_data_file, options[:clusters2graph])
