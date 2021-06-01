@@ -100,7 +100,7 @@ OptionParser.new do |opts|
   end
 
   options[:genome_assembly] = 'hg38'
-  opts.on("-G", "--genome_assembly STRING", "Genome assembly version. Please choose between hg19 and hg38. Default hg38") do |data|
+  opts.on("-G", "--genome_assembly STRING", "Genome assembly version. Please choose between hg18, hg19 and hg38. Default hg38") do |data|
     options[:genome_assembly] = data
   end
 
@@ -183,8 +183,10 @@ if options[:genome_assembly] == 'hg19' || options[:genome_assembly] == 'hg37'
   CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg19.txt')
 elsif options[:genome_assembly] == 'hg38'
   CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg38.txt')
+elsif options[:genome_assembly] == 'hg18'
+  CHR_SIZE = File.join(EXTERNAL_DATA, 'chromosome_sizes_hg18.txt')
 else
-  abort('Wrong human genome assembly. Please choose between hg19 or hg38.')
+  abort('Wrong human genome assembly. Please choose between hg19, hg18 or hg38.')
 end
 
 output_folder = File.dirname(options[:output_file])
