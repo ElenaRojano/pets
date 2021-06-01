@@ -43,6 +43,25 @@ cluster_obj_to_groups <- function(matrix_transf, clust_obj, method, minProportio
 	return(groups)
 }
 
+get_matrix_subset_mean <- function(combo, matrix_transf, groups) {
+  mean(matrix_transf[
+		names(groups)[groups %in% combo[1]],
+		names(groups)[groups %in% combo[2]]
+      ]
+  )
+}
+
+calc_sim_between_groups <- function(matrix_transf, groups) {
+	unique_groups <- unique(groups)
+	n_groups <- length(unique_groups)
+	subset_means <- combn(unique_groups, m=2, 
+		FUN=get_matrix_subset_mean, matrix_transf=matrix_transf, groups=groups)
+	group_sim <- matrix(nrow = n_groups, ncol = n_groups, dimnames=list(unique_groups,unique_groups))
+	group_sim[lower.tri(group_sim)] <- subset_means
+	print(1-group_sim)
+	group_sim
+}
+
 vectdist <- function(vectA, vectB){
 	# VectA and B must have same length. Exception not handled
 	return(sqrt(sum((vectA - vectB)^2)))
@@ -159,8 +178,20 @@ if(is.null(opt$matrix_transformation)){
 if(opt$same_sets){
 	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method, minProportionCluster = opt$minProportionCluster)
+
+	sim_between_groups <- calc_sim_between_groups(data, groups)
+	distance_between_groups <- 1 - sim_between_groups
+	groups_clustered <- fastcluster::hclust(as.dist(distance_between_groups), method="ward.D2")
+	dendrogram_groups <- as.dendrogram(groups_clustered)
+
+	# Plot dendrogram to check performance
+	# png(file=file.path(opt$output, 'dendrogram_groups.png', sep=''))
+	#    plot(dendrogram_groups)
+	# dev.off()
 	######### EXPORT
-	write.table(groups, file=paste(opt$output, '_clusters.txt', sep=''), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
+	write.table(groups, file=paste0(opt$output, '_clusters.txt'), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
+	save(dendrogram_groups, file=paste0(opt$output, '_dendrogram_groups.RData', sep=''))
+
 }else{
 	# Calc similitudes of rows
 	mdistRows = toDistances(matrix_transf)
@@ -180,9 +211,9 @@ if(opt$same_sets){
 
 ######### RENDER
 if(opt$pdf){
-	pdf(paste(opt$output, '_heatmap.pdf', sep=''), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
+	pdf(paste0(opt$output, '_heatmap.pdf'), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
 }else{
-	png(paste(opt$output, '_heatmap.png', sep=''), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
+	png(paste0(opt$output, '_heatmap.png'), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
 }
 	if(opt$same_sets){
 		group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups)))
