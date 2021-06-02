@@ -107,6 +107,8 @@ option_list <- list(
 		help="Output figure file"),
 	make_option(c("-s", "--same_sets"), type="logical", default=TRUE, action = "store_false",
 		help="Flag to indicate that set A (rows) and B (columns) contain different items"),
+	make_option(c("-S", "--save_raw_clust"), type="logical", default=FALSE, action = "store_true",
+		help="Save raw hieraquical clustering, by default processed clustering will ve saved."),
 	make_option(c("-c", "--collabel"), type="character", default="",
 		help="Columns (x) graph label"),
 	make_option(c("-r", "--rowlabel"), type="character", default="",
@@ -188,7 +190,6 @@ if(opt$same_sets){
 	sim_between_groups <- calc_sim_between_groups(data, groups)
 	distance_between_groups <- 1 - sim_between_groups
 	groups_clustered <- fastcluster::hclust(as.dist(distance_between_groups), method="ward.D2")
-	dendrogram_groups <- as.dendrogram(groups_clustered)
 
 	# Plot dendrogram to check performance
 	# png(file=file.path(opt$output, 'dendrogram_groups.png', sep=''))
@@ -196,6 +197,11 @@ if(opt$same_sets){
 	# dev.off()
 	######### EXPORT
 	write.table(groups, file=paste0(opt$output, '_clusters.txt'), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
+	if (opt$save_raw_clust){
+		dendrogram_groups <- as.dendrogram(hr)
+	} else {
+		dendrogram_groups <- as.dendrogram(groups_clustered)
+	}
 	save(dendrogram_groups, file=paste0(opt$output, '_dendrogram_groups.RData', sep=''))
 
 }else{
