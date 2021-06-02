@@ -1,15 +1,18 @@
 #! /usr/bin/env ruby
 
-require 'fileutils'
-require 'optparse'
-require 'report_html'
-require 'semtools'
-
 ROOT_PATH = File.dirname(__FILE__)
 REPORT_FOLDER = File.expand_path(File.join(ROOT_PATH, '..', 'templates'))
 EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))
 HPO_FILE = File.join(EXTERNAL_DATA, 'hp.json')
+$: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
+
+require 'fileutils'
+require 'optparse'
+require 'report_html'
+require 'semtools'
+require 'generalMethods.rb'
+
 
 class Report_html 
 	def circular_genome(user_options = {}, &block)
@@ -148,40 +151,7 @@ def load_evidence_profiles(file_path, hpo)
 	return profiles, id2label
 end
 
-def get_detailed_similarity(profile, candidates, evidences, hpo)
-	profile_length = profile.length
-	matrix = []
-	profile_length.times{ matrix << Array.new(candidates.length, 0)}
-	cand_number = 0
-	candidates.each do |candidate_id, similarity|
-		local_sim = []
-		candidate_evidence = evidences[candidate_id]
-		profile.each do |profile_term|
-			candidate_evidence.each do |candidate_term|
-				term_sim = hpo.compare([candidate_term], [profile_term], sim_type: :lin, bidirectional: false)
-				local_sim << [profile_term, candidate_term, term_sim]
-			end
-		end
-		local_sim.sort!{|s1, s2| s2.last <=> s1.last}
 
-		final_pairs = []
-		processed_profile_terms = []
-		processed_candidate_terms = []
-		local_sim.each do |pr_term, cd_term, sim|
-			if !processed_profile_terms.include?(pr_term) && !processed_candidate_terms.include?(cd_term)
-				final_pairs << [pr_term, cd_term, sim]
-				processed_profile_terms << pr_term
-				processed_candidate_terms << cd_term
-			end
-			break if profile_length == processed_profile_terms.length
-		end
-		final_pairs.each do |pr_term, cd_term, similarity|
-			matrix[profile.index(pr_term)][cand_number] = similarity
-		end
-		cand_number += 1
-	end
-	return matrix
-end
 
 def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 	all_coordinates = genomic_coordinates[entity]
@@ -268,17 +238,10 @@ profiles.each do |profile_id, reference_prof|
 	evidences_similarity.each do |pair, ev_profiles_similarity|
 		entity = pair.split('_').first
 		similarities = ev_profiles_similarity[profile_id.to_sym]
-		candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(40)
-		candidates_ids = candidates.map{|c| c.first}
-		candidate_similarity_matrix = get_detailed_similarity(reference_prof, candidates, evidences[pair][:prof], hpo)
-		candidate_similarity_matrix.each_with_index do |row, i|
-			row.unshift(hpo.translate_id(reference_prof[i]))
-		end
-		candidate_similarity_matrix.sort!{|r1,r2| r2[1..r2.length].inject(0){|sum,n| sum +n} <=> r1[1..r1.length].inject(0){|sum,n| sum +n}}
-		candidate_similarity_matrix.unshift(['HP'] + candidates_ids)
-		
+		candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(reference_prof, similarities, evidences[pair][:prof], hpo, 40)
+		candidate_sim_matrix.unshift(['HP'] + candidates_ids)	
 		all_candidates.concat(candidates)
-		similarity_matrixs[pair] = candidate_similarity_matrix
+		similarity_matrixs[pair] = candidate_sim_matrix
 		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 		all_genomic_coordinates.merge!(coords)
 	end

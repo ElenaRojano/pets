@@ -516,3 +516,49 @@ def get_and_parse_external_data(all_paths)
 	end
 	return gene_location, genes_with_kegg
 end
+
+def get_detailed_similarity(profile, candidates, evidences, hpo)
+	profile_length = profile.length
+	matrix = []
+	profile_length.times{ matrix << Array.new(candidates.length, 0)}
+	cand_number = 0
+	candidates.each do |candidate_id, similarity|
+		local_sim = []
+		candidate_evidence = evidences[candidate_id]
+		profile.each do |profile_term|
+			candidate_evidence.each do |candidate_term|
+				term_sim = hpo.compare([candidate_term], [profile_term], sim_type: :lin, bidirectional: false)
+				local_sim << [profile_term, candidate_term, term_sim]
+			end
+		end
+		local_sim.sort!{|s1, s2| s2.last <=> s1.last}
+
+		final_pairs = []
+		processed_profile_terms = []
+		processed_candidate_terms = []
+		local_sim.each do |pr_term, cd_term, sim|
+			if !processed_profile_terms.include?(pr_term) && !processed_candidate_terms.include?(cd_term)
+				final_pairs << [pr_term, cd_term, sim]
+				processed_profile_terms << pr_term
+				processed_candidate_terms << cd_term
+			end
+			break if profile_length == processed_profile_terms.length
+		end
+		final_pairs.each do |pr_term, cd_term, similarity|
+			matrix[profile.index(pr_term)][cand_number] = similarity
+		end
+		cand_number += 1
+	end
+	return matrix
+end
+
+def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, candidate_limit)
+		candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(candidate_limit)
+		candidates_ids = candidates.map{|c| c.first}
+		candidate_similarity_matrix = get_detailed_similarity(reference_prof, candidates, evidence_profiles, hpo)
+		candidate_similarity_matrix.each_with_index do |row, i|
+			row.unshift(hpo.translate_id(reference_prof[i]))
+		end
+		candidate_similarity_matrix.sort!{|r1,r2| r2[1..r2.length].inject(0){|sum,n| sum +n} <=> r1[1..r1.length].inject(0){|sum,n| sum +n}}
+		return candidate_similarity_matrix, candidates, candidates_ids
+end
