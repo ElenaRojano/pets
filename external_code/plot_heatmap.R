@@ -164,6 +164,7 @@ if(opt$pairs){ # Load pairs
 	}
 }
 
+if(sum(data[!is.na(data)]) == 0) stop("No similarity has been found")
 if(!is.null(opt$diagonal_replace)){
 	diag(data) <- opt$diagonal_replace
 }
