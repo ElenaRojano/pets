@@ -82,6 +82,11 @@ OptionParser.new do |opts|
     options[:hpo_separator] = data
   end
 
+  options[:matrix_limits] = [20, 40]
+  opts.on("-L", "--matrix_limits STRING", "Number of rows and columns to show in heatmap defined as 'Nrows,Ncols'. Default 20,40") do |data|
+    options[:matrix_limits] = data.split(",").map{|i| i.to_i}
+  end
+
 	 opts.on_tail("-h", "--help", "Show this message") do
 	    puts opts
 	    exit
@@ -105,7 +110,7 @@ hpo.load_profiles({ref: ref_profile})
 
 similarities = hpo.compare_profiles(external_profiles: clean_profiles, sim_type: :lin, bidirectional: false)
 
-candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(ref_profile, similarities[:ref], clean_profiles, hpo, 40)
+candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(ref_profile, similarities[:ref], clean_profiles, hpo, options[:matrix_limits].first,options[:matrix_limits].last)
 candidate_sim_matrix.unshift(['HP'] + candidates_ids)
 
 template = File.open(File.join(REPORT_FOLDER, 'similarity_matrix.erb')).read

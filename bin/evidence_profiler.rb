@@ -238,7 +238,7 @@ profiles.each do |profile_id, reference_prof|
 	evidences_similarity.each do |pair, ev_profiles_similarity|
 		entity = pair.split('_').first
 		similarities = ev_profiles_similarity[profile_id.to_sym]
-		candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(reference_prof, similarities, evidences[pair][:prof], hpo, 40)
+		candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(reference_prof, similarities, evidences[pair][:prof], hpo, 40, 40)
 		candidate_sim_matrix.unshift(['HP'] + candidates_ids)	
 		all_candidates.concat(candidates)
 		similarity_matrixs[pair] = candidate_sim_matrix
