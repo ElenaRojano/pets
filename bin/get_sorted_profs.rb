@@ -87,6 +87,11 @@ OptionParser.new do |opts|
     options[:matrix_limits] = data.split(",").map{|i| i.to_i}
   end
 
+  options[:ref_prof] = nil
+  opts.on("-r", "--ref_profile PATH", "Path to reference profile. One term code per line") do |data|
+    options[:ref_prof] = File.open(data).readlines.map{|c| c.chomp.to_sym}
+  end
+
 	 opts.on_tail("-h", "--help", "Show this message") do
 	    puts opts
 	    exit
@@ -96,16 +101,14 @@ end.parse!
 #############################################################################################
 ## MAIN
 ############################################################################################
-
 patient_data = load_patient_cohort(options)
 
 hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
 hpo = Ontology.new
 hpo.read(hpo_file)
 
-
 ref_profile, clean_profiles = procces_patient_data(patient_data, hpo)
-
+ref_profile = hpo.clean_profile_hard(options[:ref_prof]) if !options[:ref_prof].nil?
 hpo.load_profiles({ref: ref_profile})
 
 similarities = hpo.compare_profiles(external_profiles: clean_profiles, sim_type: :lin, bidirectional: false)
@@ -120,3 +123,9 @@ container = {
 report = Report_html.new(container, 'Similarity matrix')
 report.build(template)
 report.write(options[:output_file])
+
+File.open(options[:output_file].gsub('.html','') +'.txt', 'w') do |f|
+  similarities[:ref].each do |candidate, value|
+    f.puts [candidate.to_s, value].join("\t")
+  end
+end

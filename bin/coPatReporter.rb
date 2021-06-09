@@ -371,6 +371,9 @@ Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do
   report.write(options[:output_file]+"_#{method_name}_clusters.html")
 end
 
+system_call(EXTERNAL_CODE, 'generate_boxpot.R', "-i #{temp_folder} -o #{File.join(temp_folder, 'sim_boxplot')}") if !File.exists?(File.join(temp_folder, 'sim_boxplot.png'))
+
+
 #----------------------------------
 # GENERAL COHORT ANALYZER REPORT
 #----------------------------------

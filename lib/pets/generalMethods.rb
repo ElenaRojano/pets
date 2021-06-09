@@ -552,7 +552,7 @@ def get_detailed_similarity(profile, candidates, evidences, hpo)
 	return matrix
 end
 
-def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, candidate_limit)
+def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, term_limit, candidate_limit)
 		candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(candidate_limit)
 		candidates_ids = candidates.map{|c| c.first}
 		candidate_similarity_matrix = get_detailed_similarity(reference_prof, candidates, evidence_profiles, hpo)
@@ -560,5 +560,6 @@ def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, 
 			row.unshift(hpo.translate_id(reference_prof[i]))
 		end
 		candidate_similarity_matrix.sort!{|r1,r2| r2[1..r2.length].inject(0){|sum,n| sum +n} <=> r1[1..r1.length].inject(0){|sum,n| sum +n}}
+		candidate_similarity_matrix = candidate_similarity_matrix.first(term_limit)
 		return candidate_similarity_matrix, candidates, candidates_ids
 end
