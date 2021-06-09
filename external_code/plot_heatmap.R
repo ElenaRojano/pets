@@ -137,22 +137,21 @@ opt <- parse_args(OptionParser(option_list=option_list))
 if(opt$pairs){ # Load pairs
 	data_raw <- read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE)
 	colnames(data_raw) <- c("SetA","SetB","Value")
-
+	data_raw$SetA <- as.character(data_raw$SetA)
+	data_raw$SetB <- as.character(data_raw$SetB)
 	if(opt$same_sets){
-		aux = unique(c(as.character(data_raw$SetA),as.character(data_raw$SetB)))
-		rowSet = aux
-		colSet = aux
-	}else{
-		rowSet = as.character(unique(data_raw$SetA))
-		colSet = as.character(unique(data_raw$SetB))
+		all_elements <- sort(unique(unlist(data_raw[,c("SetA","SetB")])))
+	 	data <- matrix(0, length(all_elements), length(all_elements), dimnames = list(all_elements, all_elements))
+	 	str(data_raw)
+	 	str(data)
+	  	data[as.matrix(data_raw[,c("SetA","SetB")])] <- data_raw$Value
+	  	data[as.matrix(data_raw[,c("SetB","SetA")])] <- data_raw$Value
+	} else {
+		rowSet <- unique(data_raw$SetA)
+		colSet <- unique(data_raw$SetB)
+		data <- matrix(0, ncol = length(colSet), nrow = length(rowSet), dimnames = list(rowSet, colSet))
+		data[as.matrix(data_raw[,c("SetA","SetB")])] <- data_raw$Value
 	}
-
-	data <- matrix(0, ncol = length(colSet), nrow = length(rowSet))
-	colnames(data) <- colSet
-	rownames(data) <- rowSet
-	invisible(lapply(seq(nrow(data_raw)),function(i){
-		data[as.character(data_raw$SetA[i]),as.character(data_raw$SetB[i])] <<- data_raw$Value[i]
-	}))	
 }else{ # Load matrix
 	if(!is.null(opt$npy)){
 		axis_labels <- read.table(opt$npy, header=FALSE, stringsAsFactors=FALSE)
