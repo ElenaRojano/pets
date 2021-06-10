@@ -141,11 +141,10 @@ if(opt$pairs){ # Load pairs
 	data_raw$SetB <- as.character(data_raw$SetB)
 	if(opt$same_sets){
 		all_elements <- sort(unique(unlist(data_raw[,c("SetA","SetB")])))
-	 	data <- matrix(0, length(all_elements), length(all_elements), dimnames = list(all_elements, all_elements))
-	 	str(data_raw)
-	 	str(data)
+	 	data <- matrix(NA, length(all_elements), length(all_elements), dimnames = list(all_elements, all_elements))
 	  	data[as.matrix(data_raw[,c("SetA","SetB")])] <- data_raw$Value
 	  	data[as.matrix(data_raw[,c("SetB","SetA")])] <- data_raw$Value
+	  	# save(data, file = "test2.RData")
 	} else {
 		rowSet <- unique(data_raw$SetA)
 		colSet <- unique(data_raw$SetB)
@@ -227,19 +226,16 @@ if(opt$pdf){
 }else{
 	png(paste0(opt$output, '_heatmap.png'), width = 1000, height = 1000, units = "px", res=175, pointsize = 8)
 }
-	if(opt$same_sets){
-		group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups)))
-		# print("cluster number:")
-		# print(length(unique(groups)))
-		# print(length(unique(group_colours)))
-		group_colours_arranged <- group_colours[groups]
-		heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
-					xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
-	}else{
-		heatmap.2(data, Rowv=as.dendrogram(hr_row), Colv=as.dendrogram(hr_col), trace="none", col=brewer.pal(11,"RdBu"), labRow = FALSE, labCol = FALSE,
-					xlab = opt$collabel, ylab = opt$rowlabel)
+if(opt$same_sets){
+	group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups)))
+	group_colours_arranged <- c(rep('#000000', length(groups[groups == 0])), group_colours[groups])
+	heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
+				xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
+}else{
+	heatmap.2(data, Rowv=as.dendrogram(hr_row), Colv=as.dendrogram(hr_col), trace="none", col=brewer.pal(11,"RdBu"), labRow = FALSE, labCol = FALSE,
+				xlab = opt$collabel, ylab = opt$rowlabel)
 
-	}
+}
 dev.off()
 # save.image("test.RData")
 
