@@ -1,15 +1,22 @@
 #!/usr/bin/env Rscript
 suppressMessages(library(dplyr))
 
-load_file <- function(file_path, cluster_sim_out = NULL){ 
+#####################
+## FUNCTIONS
+#####################
+
+load_file <- function(file_path, cluster_sim_out = NULL, sim_method = 'lin'){ 
 	# sim_matrix <- read.table(file = file.path(file_path), sep = "\t", stringsAsFactors = FALSE, header = FALSE)
-	sim_matrix <- RcppCNPy::npyLoad(file.path(file_path, "similarity_matrix_lin.npy"))
-	axis_labels <- read.table(file.path(file_path, "similarity_matrix_lin.lst"), header=FALSE, stringsAsFactors=FALSE)
+	file_name <- paste0('similarity_matrix_',sim_method,'.npy')
+	sim_matrix <- RcppCNPy::npyLoad(file.path(file_path, file_name))
+	file_name <- paste0('similarity_matrix_',sim_method,'.lst')
+	axis_labels <- read.table(file.path(file_path, file_name), header=FALSE, stringsAsFactors=FALSE)
  	colnames(sim_matrix) <- axis_labels$V1
  	rownames(sim_matrix) <- axis_labels$V1
  	diag(sim_matrix) <- NA
-
- 	groups <- read.table(file.path(file_path, "lin_clusters.txt"), header=FALSE)
+	
+	file_name <- paste0(sim_method,'_clusters.txt')
+ 	groups <- read.table(file.path(file_path, file_name), header=FALSE)
  	groups_vec <- groups[,2]
 	names(groups_vec) <- groups[,1]
  	sim_within_groups <- calc_sim_within_groups(sim_matrix, groups_vec)
@@ -41,9 +48,15 @@ calc_sim_within_groups <- function(matrix_transf, groups) {
 	group_mean_sim
 }
 
+#####################
+## OPTPARSE
+#####################
+
 option_list <- list(
   optparse::make_option(c("-i", "--input_paths"), type="character", default=NULL,
-    help="Path to Npy and names."),
+    help="Path to Npy and names"),
+  optparse::make_option(c("-m", "--sim_method"), type="character", default='lin',
+    help="Similarity method"),
   optparse::make_option(c("-o", "--output_file"), type="character", default=NULL,
     help="Output graph file name"),
   optparse::make_option(c("-t", "--tags"), type="character", default=NULL,
@@ -51,6 +64,9 @@ option_list <- list(
 )
 opt <- optparse::parse_args(optparse::OptionParser(option_list=option_list))
 
+#####################
+## MAIN
+#####################
 
 all_files <- unlist(strsplit(opt$input_paths, ","))
 tags <- seq(length(all_files))
@@ -60,7 +76,7 @@ if (!is.null(opt$tags)){
 
 similarity_dist <- list()
 for (file_i in seq(length(all_files))) {
-	similarity_dist[[tags[file_i]]] <- load_file(all_files[file_i], cluster_sim_out = paste0(opt$output_file,"_", tags[file_i],"_cluster_sim"))
+	similarity_dist[[tags[file_i]]] <- load_file(all_files[file_i], cluster_sim_out = paste0(opt$output_file,"_", tags[file_i],"_cluster_sim"), sim_method = opt$sim_method)
 }
 similarity_dist[["enod"]] <- NULL
 for (tag in names(similarity_dist)){
@@ -83,8 +99,6 @@ pp <- ggplot2::ggplot(similarity_dist, ggplot2::aes(x = Cohort, y = Similarity, 
 				   legend.position = "top",
 				   legend.title = ggplot2::element_text(size = 14),
   					legend.text = ggplot2::element_text(size = 14)) +
-	ggplot2::labs(fill = "Lin similarity")
+	ggplot2::labs(fill = paste0(opt$sim_method, " similarity"))
 
 ggplot2::ggsave(filename = paste0(opt$output_file,".png"),pp,width = 20, height = 18, dpi = 200, units = "cm", device='png')
-
-

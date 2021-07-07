@@ -369,9 +369,9 @@ Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do
   report = Report_html.new(container, 'Patient clusters report')
   report.build(template)
   report.write(options[:output_file]+"_#{method_name}_clusters.html")
+  system_call(EXTERNAL_CODE, 'generate_boxpot.R', "-i #{temp_folder} -m #{method_name} -o #{File.join(temp_folder, method_name + '_sim_boxplot')}") if !File.exists?(File.join(temp_folder, 'sim_boxplot.png'))
 end
 
-system_call(EXTERNAL_CODE, 'generate_boxpot.R', "-i #{temp_folder} -o #{File.join(temp_folder, 'sim_boxplot')}") if !File.exists?(File.join(temp_folder, 'sim_boxplot.png'))
 
 
 #----------------------------------

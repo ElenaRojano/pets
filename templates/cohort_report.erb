@@ -166,12 +166,10 @@
 			<% else
 				puts 'File not found or method not specified.'
 			end
-		end
-	%>
-	<%= 
-		plot = File.join(@hash_vars[:temp_folder],'sim_boxplot.png')
-		if File.exists?(plot)
-			embed_img(plot, 'width="800" height="800"') 
+			plot = File.join(@hash_vars[:temp_folder], clust_method + '_sim_boxplot.png')
+			if File.exists?(plot) %>
+				<%= embed_img(plot, 'width="800" height="800"') %> 
+			<% end
 		end
 	%>	
 </div>
