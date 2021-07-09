@@ -24,9 +24,9 @@ Or install it yourself as:
     $ gem install pets
 
 
-After installing PETS Gem, R dependencies must be installed by running the script:
-
-    $ path_to_gem/external_code/install_R_dependencies.R
+After installing PETS Gem, R dependencies must be installed. For this, the user must run the following command:
+    
+    $ install_deps.rb
 
 ## Usage
 

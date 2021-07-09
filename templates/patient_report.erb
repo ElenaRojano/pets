@@ -141,7 +141,7 @@
 			row.each_with_index do |cell, i|
 				if i == 3
 					row[i] = cell.map{|h|
-						hpo_names, rejected = hpo.translate_codes2names([h])
+						hpo_names, rejected = hpo.translate_names([h])
 						"#{get_hpo_link(h)}: #{hpo_names.first}"
 					}.join("\n<br>")
 				elsif i == 4

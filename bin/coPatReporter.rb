@@ -18,11 +18,6 @@ require 'coPatReporterMethods.rb'
 require 'report_html'
 require 'semtools'
 
-#Expand class (semtools modifications if necessary):
-class Ontology
-
-end
-
 ##########################
 # FUNCTIONS
 ##########################
