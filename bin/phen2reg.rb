@@ -2,15 +2,15 @@
 # Rojano E. & Seoane P., September 2016
 # Program to predict the position from given HPO codes, sorted by their association values.
 
-REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
-require 'generalMethods.rb'
-require 'phen2reg_methods.rb'
 require 'optparse'
 require 'report_html'
 require 'semtools'
+require 'generalMethods.rb'
+require 'phen2reg_methods.rb'
+require 'constants.rb'
 
 
 ##########################

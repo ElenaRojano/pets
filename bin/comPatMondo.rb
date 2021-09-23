@@ -4,15 +4,12 @@
 # @author Fernando Moreno Jabato <jabato(at)uma(dot)es>
 
 ROOT_PATH = File.dirname(__FILE__)
-EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
-MONDO_FILE = File.join(EXTERNAL_DATA, 'mondo.obo')
-HPO_FILE = File.join(EXTERNAL_DATA, 'hp.obo')
-EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
 require 'semtools'
 require 'csv'
+require 'constants.rb'
 require 'coPatReporterMethods.rb'
 
 ##########################

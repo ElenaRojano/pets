@@ -6,25 +6,6 @@ CHR = 1
 START = 2
 STOP = 3
 
-def load_hpo_ontology(hpo_file, excluded_hpo_file)
-  hpo = nil
-  if !hpo_file.include?('.json')
-    if !excluded_hpo_file.nil?
-      hpo = Ontology.new(file: hpo_file, load_file: true, removable_terms: read_excluded_hpo_file(excluded_hpo_file))
-    else
-      hpo = Ontology.new(file: hpo_file, load_file: true)
-    end
-  else
-    hpo = Ontology.new
-    hpo.read(hpo_file)
-    if !excluded_hpo_file.nil?
-      hpo.add_removable_terms(read_excluded_hpo_file(excluded_hpo_file))
-      hpo.remove_removable()
-      hpo.build_index()
-    end
-  end
-  return hpo
-end
 
 def format_patient_data(patient_data, options, hpo)
   rejected_hpos = []
@@ -82,47 +63,22 @@ def clean_patient_profiles(hpo, patient_profiles)
   patient_profiles.select!{|pat_id, patient_record| !rejected_patients.include?(pat_id)}
   hpo.profiles = {}
   hpo.load_profiles(patient_profiles)
-
 end
 
-def generate_patient_hpo_matrix(patient_data, cohort_hpos)
-  matrix = []
-  n = cohort_hpos.length
-  patient_data.each do |pat_id, pat_hpos|
-    vector = Array.new(n, 0)
-    pat_hpos.each do |hpo|
-      vector[cohort_hpos.index(hpo)] = 1
-    end
-    matrix << vector
+def translate_codes(clusters, hpo)
+  translated_clusters = []
+  clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
+        translate_codes = patient_hpos_ary.map{|patient_hpos| patient_hpos.map{|hpo_code| hpo.translate_id(hpo_code)}}
+        translated_clusters << [clusterID, 
+          num_of_pats, 
+          patientIDs_ary, 
+          patient_hpos_ary, 
+          translate_codes
+        ]
   end
-  return matrix
+  return translated_clusters
 end
 
-def generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
-  y_names = patient_data.keys
-  x_names = cohort_hpos
-  x_names_indx = {}
-  cohort_hpos.each_with_index{|hp,x| x_names_indx[hp]=x}
-  # row (y), cols (x)
-  matrix = Numo::DFloat.zeros(patient_data.length, cohort_hpos.length)
-  i = 0
-  patient_data.each do |pat_id, pat_hpos|
-    pat_hpos.each do |hp|
-      matrix[i, x_names_indx[hp]] = 1
-    end
-    i += 1
-  end
-  return matrix, y_names, x_names
-end
-
-def write_matrix_for_R(matrix, x_names, y_names, file)
-  File.open(file, 'w') do |f|
-    f.puts x_names.join("\t")
-    matrix.each_with_index do |row, i|
-      f.puts [y_names[i]].concat(row).join("\t")
-    end
-  end
-end
 
 def process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
   all_ics = []
@@ -139,8 +95,8 @@ def process_clustered_patients(options, clustered_patients, patient_uniq_profile
     profile_lengths = []
     processed_patients = []
     patient_ids.each do |pat_id|
-      phenotypes = patient_uniq_profiles[pat_id]  
-      #pat_id = pat_id.gsub(/_i\d+$/,'') if patient_id_type != 'generated'
+      uniq_pat_id = pat_id.gsub(/_i\d+$/,'')
+      phenotypes = patient_uniq_profiles[uniq_pat_id]  
       processed_patients << pat_id 
       profile_ics << get_profile_ic(phenotypes, phenotype_ic)
       profile_lengths << phenotypes.length
@@ -148,7 +104,7 @@ def process_clustered_patients(options, clustered_patients, patient_uniq_profile
         phen_names, rejected_codes = hpo.translate_ids(phenotypes) #optional
         all_phens << phen_names
       end
-      variants = equivalence[pat_id]
+      variants = equivalence[uniq_pat_id]
       variants.each do |variant|
         variant_data = patient_data[variant]
         chrs[variant_data[CHR]] += 1 if !options[:chromosome_col].nil? && variant_data[CHR] != '-'
@@ -181,41 +137,6 @@ def get_profile_ic(hpo_names, phenotype_ic)
   end
   profile_length = 1 if profile_length == 0
   return ic.fdiv(profile_length)
-end
-
-def write_cluster_ic_data(all_ics, profile_lengths, cluster_ic_data_file, limit)
-  File.open(cluster_ic_data_file, 'w') do |f|
-    f.puts %w[cluster_id ic Plen].join("\t")
-    all_ics.each_with_index do |cluster_ics, i|
-      break if i == limit
-      cluster_length = cluster_ics.length
-      cluster_ics.each_with_index do |clust_ic, j|
-        f.puts "#{cluster_length}_#{i}\t#{clust_ic}\t#{profile_lengths[i][j]}"
-      end
-    end
-  end
-end
-
-def write_cluster_chromosome_data(cluster_data, cluster_chromosome_data_file, limit)
-  File.open(cluster_chromosome_data_file, 'w') do |f|
-    f.puts %w[cluster_id chr count].join("\t")
-    index = 0
-    last_id = cluster_data.first.first unless cluster_data.empty?
-    cluster_data.each do |cluster_id, patient_number, chr, count|
-      index += 1 if cluster_id != last_id 
-      break if index == limit
-      f.puts ["#{patient_number}_#{index}", chr, count].join("\t")
-      last_id = cluster_id
-    end
-  end
-end
-
-def write_coverage_data(coverage_to_plot, coverage_to_plot_file)
-  File.open(coverage_to_plot_file, 'w') do |f|
-    coverage_to_plot.each do |chr, position, freq|
-     f.puts "#{chr}\t#{position}\t#{freq}"
-   end
-  end
 end
 
 def get_uniq_hpo_profiles(patient_data) # To avoid duplications due to more one mutation in the same patient
@@ -273,47 +194,6 @@ def get_profile_ontology_distribution_tables(hpo)
   ontology_levels.unshift(["level", "ontology", "cohort"])
   distribution_percentage.unshift(["level", "ontology", "weighted cohort", "uniq terms cohort"])
   return ontology_levels, distribution_percentage
-end
-
-
-def write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluation_file, summary_stats)
-  CSV.open(detailed_profile_evaluation_file, "wb") do |csv|
-    suggested_childs.each do |pat_id, suggestions|
-      warning = nil
-      warning = 'WARNING: Very few phenotypes' if suggestions.length < 4
-      csv << ["PATIENT #{pat_id}", "#{warning}"]
-      csv << ["CURRENT PHENOTYPES", "PUTATIVE MORE SPECIFIC PHENOTYPES"]
-      suggestions.each do |parent, childs|
-        parent_code, parent_name = parent
-        if childs.empty?
-          csv << ["#{parent_name} (#{parent_code})", '-']
-        else
-          parent_writed = false
-          childs.each do |child_code, child_name|
-            if !parent_writed
-              parent_field = "#{parent_name} (#{parent_code})"
-              parent_writed = true
-            else
-              parent_field = ""
-            end
-            csv << [parent_field, "#{child_name} (#{child_code})"]
-          end
-        end
-      end
-      csv << ["", ""]
-    end
-  end
-end
-
-def write_arrays4scatterplot(x_axis_value, y_axis_value, filename, x_axis_name, y_axis_name)
-  File.open(filename, 'w') do |f|
-    f.puts "#{x_axis_name}\t#{y_axis_name}"
-    x_axis_value.each_with_index do |value,i|
-      y_value = y_axis_value[i]
-      raise("The #{i} position is not presented in y_axis_value") if y_value.nil?
-      f.puts [value, y_value].join("\t")
-    end
-  end
 end
 
 def process_patient_data(patient_data)
@@ -407,30 +287,6 @@ def get_profile_redundancy(hpo)
   return profile_sizes, parental_hpos_per_profile
 end
 
-def format_profiles_similarity_data(profiles_similarity)
-  matrix = []
-  element_names = profiles_similarity.keys
-  matrix << element_names
-  profiles_similarity.each do |elementA, relations|
-    row = [elementA]
-    element_names.each do |elementB|
-      if elementA == elementB
-        row << 'NA'
-      else
-        query = relations[elementB]
-        if !query.nil?
-          row << query
-        else
-          row << profiles_similarity[elementB][elementA]
-        end
-      end
-    end
-    matrix << row
-  end
-  matrix[0].unshift('pat')
-  return matrix
-end
-
 def format_profiles_similarity_data_pairs(profiles_similarity)
   pairs = []
   element_names = profiles_similarity.keys
@@ -449,65 +305,6 @@ def format_profiles_similarity_data_pairs(profiles_similarity)
     end
   end
   return pairs
-end
-
-def format_profiles_similarity_data_numo(profiles_similarity)
-  element_names = profiles_similarity.keys
-  matrix = Numo::DFloat.zeros(element_names.length, element_names.length)
-  i = 0
-  profiles_similarity.each do |elementA, relations|
-    element_names.each_with_index do |elementB, j|
-      if elementA != elementB
-        query = relations[elementB]
-        if !query.nil?
-          matrix[i, j] = query
-        else
-          matrix[i, j] = profiles_similarity[elementB][elementA]
-        end
-      end
-    end
-    i += 1
-  end
-  return matrix, element_names
-end
-
-def write_similarity_matrix(similarity_matrix, similarity_matrix_file)  
-  File.open(similarity_matrix_file, 'w') do |f|
-    similarity_matrix.each do |row|
-      f.puts row.join("\t")
-    end
-  end
-end
-
-def write_profile_pairs(similarity_pairs, filename)
-  File.open(filename, 'w') do |f|
-    similarity_pairs.each do |pairsA, pairsB_and_values|
-      pairsB_and_values.each do |pairsB, values|
-        f.puts "#{pairsA}\t#{pairsB}\t#{values}"
-      end
-    end
-  end
-end
-
-def parse_clusters_file(clusters_file, patient_profiles)
-  clusters_info = {}
-  clusters_table = []
-  File.open(clusters_file).each do |line|
-    line.chomp!
-    patientID, clusterID = line.split("\t")
-    patientHPOProfile = patient_profiles[patientID]
-    query = clusters_info[clusterID]
-    if query.nil? 
-      clusters_info[clusterID] = {patientID => patientHPOProfile}
-    else
-      query[patientID] = patientHPOProfile
-    end
-  end
-  clusters_info.each do |clusterID, patients_info|
-    patients_per_cluster = patients_info.keys.length
-    clusters_table << [clusterID, patients_per_cluster, patients_info.keys, patients_info.values]
-  end
-  return clusters_table, clusters_info
 end
 
 def get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)

@@ -1,11 +1,6 @@
 #! /usr/bin/env ruby
 
 ROOT_PATH = File.dirname(__FILE__)
-REPORT_FOLDER = File.expand_path(File.join(ROOT_PATH, '..', 'templates'))
-EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
-EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))
-HPO_FILE = File.join(EXTERNAL_DATA, 'hp.json')
-IC_FILE = File.join(EXTERNAL_DATA, 'uniq_hpo_with_CI.txt')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'benchmark'
@@ -13,28 +8,13 @@ require 'parallel'
 require 'optparse'
 require 'csv'
 require 'npy'
-require 'generalMethods.rb'
-require 'coPatReporterMethods.rb'
 require 'report_html'
 require 'semtools'
-
-##########################
-# FUNCTIONS
-##########################
-
-def translate_codes(clusters, hpo)
-  translated_clusters = []
-  clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
-        translate_codes = patient_hpos_ary.map{|patient_hpos| patient_hpos.map{|hpo_code| hpo.translate_id(hpo_code)}}
-        translated_clusters << [clusterID, 
-          num_of_pats, 
-          patientIDs_ary, 
-          patient_hpos_ary, 
-          translate_codes
-        ]
-  end
-  return translated_clusters
-end
+require 'constants.rb'
+require 'generalMethods.rb'
+require 'matrix_manipulation.rb'
+require 'io.rb'
+require 'coPatReporterMethods.rb'
 
 ##########################
 #OPT-PARSER

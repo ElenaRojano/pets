@@ -8,8 +8,9 @@ ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
-require 'generalMethods.rb'
 require 'semtools'
+require 'generalMethods.rb'
+require 'constants.rb'
 require 'reg2phen_methods'
 
 ##########################

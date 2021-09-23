@@ -1,15 +1,12 @@
 #! /usr/bin/env ruby
 
-
 ROOT_PATH = File.dirname(__FILE__)
-REPORT_FOLDER = File.expand_path(File.join(ROOT_PATH, '..', 'templates'))
-EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
-HPO_FILE = File.join(EXTERNAL_DATA, 'hp.json')
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
 require 'report_html'
 require 'semtools'
+require 'constants.rb'
 require 'generalMethods.rb'
 
 #############################################################################################
@@ -17,16 +14,11 @@ require 'generalMethods.rb'
 ############################################################################################
 def procces_patient_data(patient_data, hpo)
 	clean_profiles = {}
-	all_hpo = []
 	patient_data.each do |pat_id, data|
 		profile = hpo.clean_profile_hard(data.first.map{|c| c.to_sym})
-		if !profile.empty?
-			clean_profiles[pat_id] = profile
-			all_hpo.concat(profile)
-		end
+		clean_profiles[pat_id] = profile if !profile.empty?
 	end
-	ref_prof = hpo.clean_profile_hard(all_hpo.uniq)
-	return ref_prof, clean_profiles
+	return clean_profiles
 end
 
 #############################################################################################
@@ -107,8 +99,12 @@ hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
 hpo = Ontology.new
 hpo.read(hpo_file)
 
-ref_profile, clean_profiles = procces_patient_data(patient_data, hpo)
-ref_profile = hpo.clean_profile_hard(options[:ref_prof]) if !options[:ref_prof].nil?
+clean_profiles = procces_patient_data(patient_data, hpo)
+if !options[:ref_prof].nil?
+  ref_profile = hpo.clean_profile_hard(options[:ref_prof])
+else
+  ref_profile = hpo.clean_profile_hard(clean_profiles.flatten.uniq)
+end
 hpo.load_profiles({ref: ref_profile})
 
 similarities = hpo.compare_profiles(external_profiles: clean_profiles, sim_type: :lin, bidirectional: false)
