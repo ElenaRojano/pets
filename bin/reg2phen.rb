@@ -3,15 +3,12 @@
 #data2predict = file to predict
 #training_file.txt = file with training data (association values and hpo codes).
 
-REPORT_FOLDER=File.expand_path(File.join(File.dirname(__FILE__), '..', 'templates'))
 ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
 require 'semtools'
-require 'generalMethods.rb'
-require 'constants.rb'
-require 'reg2phen_methods'
+require 'pets'
 
 ##########################
 #OPT-PARSER

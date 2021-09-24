@@ -7,9 +7,7 @@ require 'fileutils'
 require 'optparse'
 require 'report_html'
 require 'semtools'
-require 'constants.rb'
-require 'generalMethods.rb'
-require 'io.rb'
+require 'pets'
 
 #############################################################################################
 ## METHODS

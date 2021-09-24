@@ -80,7 +80,7 @@ def translate_codes(clusters, hpo)
 end
 
 
-def process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, patient_id_type) # get ic and chromosomes
+def process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic) # get ic and chromosomes
   all_ics = []
   all_lengths = []
   top_cluster_phenotypes = []

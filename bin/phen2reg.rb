@@ -8,10 +8,7 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 require 'optparse'
 require 'report_html'
 require 'semtools'
-require 'generalMethods.rb'
-require 'phen2reg_methods.rb'
-require 'constants.rb'
-
+require 'pets'
 
 ##########################
 #OPT-PARSER

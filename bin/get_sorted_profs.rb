@@ -6,8 +6,8 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 require 'optparse'
 require 'report_html'
 require 'semtools'
-require 'constants.rb'
-require 'generalMethods.rb'
+require 'pets'
+
 
 #############################################################################################
 ## METHODS

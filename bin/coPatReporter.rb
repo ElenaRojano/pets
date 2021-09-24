@@ -10,11 +10,7 @@ require 'csv'
 require 'npy'
 require 'report_html'
 require 'semtools'
-require 'constants.rb'
-require 'generalMethods.rb'
-require 'matrix_manipulation.rb'
-require 'io.rb'
-require 'coPatReporterMethods.rb'
+require 'pets'
 
 ##########################
 #OPT-PARSER
@@ -216,7 +212,7 @@ else
   end
 end
 clustered_patients = cluster_patients(patient_uniq_profiles, cohort_hpos, matrix_file, clustered_patients_file) 
-all_ics, profile_lengths, cluster_data_by_chromosomes, top_cluster_phenotypes, multi_chromosome_patients = process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic, options[:pat_id_col])
+all_ics, profile_lengths, cluster_data_by_chr, top_cluster_phen, multi_chr_patients = process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic)
 get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
 summary_stats = get_summary_stats(patient_uniq_profiles, rejected_patients, cohort_hpos, hpo)
@@ -230,7 +226,7 @@ summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
 
 all_cnvs_length = []
 if !options[:chromosome_col].nil?
-  summary_stats << ['Number of clusters with mutations accross > 1 chromosomes', multi_chromosome_patients]
+  summary_stats << ['Number of clusters with mutations accross > 1 chromosomes', multi_chr_patients]
   
   #----------------------------------
   # Prepare data to plot coverage
@@ -292,7 +288,7 @@ write_cluster_ic_data(all_ics, profile_lengths, cluster_ic_data_file, options[:c
 system_call(EXTERNAL_CODE, 'plot_boxplot.R', "#{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient' 'Plen' 'Profile size'")
 
 if !options[:chromosome_col].nil?
-  write_cluster_chromosome_data(cluster_data_by_chromosomes, cluster_chromosome_data_file, options[:clusters2graph])
+  write_cluster_chromosome_data(cluster_data_by_chr, cluster_chromosome_data_file, options[:clusters2graph])
   system_call(EXTERNAL_CODE, 'plot_scatterplot.R', "#{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
   if options[:coverage_analysis]
     ###1. Process CNVs
@@ -355,7 +351,7 @@ end
 total_patients = 0
 new_cluster_phenotypes = {}
 phenotypes_frequency = Hash.new(0)
-top_cluster_phenotypes.each_with_index do |cluster, clusterID|
+top_cluster_phen.each_with_index do |cluster, clusterID|
   total_patients = cluster.length
   cluster.each do |phenotypes|
     phenotypes.each do |p|
@@ -369,7 +365,7 @@ end
 
 container = {
   :temp_folder => temp_folder,
-  # :top_cluster_phenotypes => top_cluster_phenotypes.length,
+  # :top_cluster_phen => top_cluster_phen.length,
   :summary_stats => summary_stats,
   :clustering_methods => options[:clustering_methods],
   :hpo_stats => hpo_stats,
