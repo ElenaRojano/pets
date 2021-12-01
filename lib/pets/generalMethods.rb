@@ -13,7 +13,16 @@ def system_call(code_folder, script, args_string)
 	end
 end
 
-
+def add_record(hash, key, record, uniq=false)
+	query = hash[key]
+	if query.nil?
+		hash[key] = [record]
+	elsif !uniq # We not take care by repeated entries
+		query << record
+	elsif !query.include?(record) # We want uniq entries
+		query << record
+	end
+end
 
 
 def compute_IC_values(patient_data, total_patients)
@@ -170,76 +179,7 @@ def binom(n,k)
 	end
 end
 
-def get_reference(genomic_ranges)
-	#genomic_ranges = [patientID, mut_start, mut_stop]
-	reference = []
-	reference.concat(genomic_ranges.map{|gr| gr[1]})# get start
-	reference.concat(genomic_ranges.map{|gr| gr[2]})# get stop
-	reference.uniq!
-	reference.sort!
-	#Define overlap range
-	final_reference = []
-	reference.each_with_index do |coord,i|
-		next_coord = reference[i + 1]
-		final_reference << [coord, next_coord] if !next_coord.nil? 
-	end
-	return final_reference
-end
 
-def overlap_patients(genomic_ranges, reference)
-	overlaps = []
-	reference.each do |start, stop|
-		patients = []
-		genomic_ranges.each do |pt_id, pt_start, pt_stop|
-			if (start <= pt_start && stop >= pt_stop) ||
-				(start > pt_start && stop < pt_stop) ||
-				(stop > pt_start && stop <= pt_stop) ||
-				(start >= pt_start && start < pt_stop)
-				patients << pt_id
-			end
-		end
-		overlaps << patients.uniq
-	end
-	return overlaps
-end
-
-def generate_cluster_regions(patients_genomic_region_by_chr, mutation_type, pat_per_reg = 1)
-	patients_out_of_cluster = 0
-	patients_by_cluster = {}
-	sors = []
-	patients_genomic_region_by_chr.each do |chrm, genomic_ranges|
-		reference = get_reference(genomic_ranges) # Get putative overlap regions
-		overlapping_patients = overlap_patients(genomic_ranges, reference) # See what patient has match with a overlap region
-		clust_number = 1
-		reference.each_with_index do |ref, i|
-			current_patients = overlapping_patients[i]
-			if current_patients.length > pat_per_reg
-				ref << chrm
-				node_identifier = "#{chrm}.#{clust_number}.#{mutation_type}.#{current_patients.length}"
-				ref << node_identifier
-				save_sor(current_patients, node_identifier, patients_by_cluster)
-				sors << ref
-				clust_number += 1
-			end
-		end
-	end
-	return patients_by_cluster, sors
-end
-
-def save_sor(current_patients, node_identifier, patients_by_cluster)
-	current_patients.each do |patient|
-		add_record(patients_by_cluster, patient, node_identifier)
-	end
-end
-
-def add_record(hash, key, record)
-	query = hash[key]
-	if query.nil?
-		hash[key] = [record]
-	elsif !query.include?(record)
-		query << record
-	end
-end
 
 
 def get_and_parse_external_data(all_paths)

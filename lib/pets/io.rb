@@ -18,6 +18,13 @@ def load_hpo_ontology(hpo_file, excluded_hpo_file)
   return hpo
 end
 
+def read_excluded_hpo_file(file)
+  excluded_hpo = []
+  File.open(file).each do |line|
+    excluded_hpo << line.chomp
+  end
+  return excluded_hpo
+end
 
 def write_matrix_for_R(matrix, x_names, y_names, file)
   File.open(file, 'w') do |f|
@@ -123,13 +130,22 @@ def write_profile_pairs(similarity_pairs, filename)
   end
 end
 
-def parse_clusters_file(clusters_file, patient_profiles)
+def write_patient_hpo_stat(average_hp_per_pat_distribution, output_file)
+  File.open(output_file, 'w') do |f|
+    f.puts "#{'PatientsNumber'}\t#{'HPOAverage'}"
+    average_hp_per_pat_distribution.each do |patient_num, ave|
+      f.puts "#{patient_num}\t#{ave}"
+    end
+  end
+end
+
+def parse_clusters_file(clusters_file, patient_data)
   clusters_info = {}
   clusters_table = []
   File.open(clusters_file).each do |line|
     line.chomp!
     patientID, clusterID = line.split("\t")
-    patientHPOProfile = patient_profiles[patientID]
+    patientHPOProfile = patient_data.get_profile(patientID)
     query = clusters_info[clusterID]
     if query.nil? 
       clusters_info[clusterID] = {patientID => patientHPOProfile}
@@ -424,60 +440,6 @@ def read_compressed_json(path)
   gz = Zlib::GzipReader.new(infile)
   object = JSON.parse(gz.read)
   return object
-end
-
-def load_patient_cohort(options)
-  patient_data = {}
-  count = 0
-  fields2extract = get_fields2extract(options)
-  field_numbers = fields2extract.values
-    File.open(options[:input_file]).each do |line|
-      line.chomp!
-      if options[:header] && count == 0
-        line.gsub!(/#\s*/,'') # correct comment like  headers
-        field_names = line.split("\t")
-        get_field_numbers2extract(field_names, fields2extract)
-        field_numbers = fields2extract.values
-      else
-        fields = line.split("\t")
-        pat_record = field_numbers.map{|n| fields[n]}
-        if fields2extract[:pat_id_col].nil?
-          pat_id = "pat_#{count}" #generate ids
-        else
-          original_id = pat_record.shift
-          pat_id = original_id + "_i#{count}" # make sure that ids are uniq
-        end
-        if !pat_record[0].nil? 
-          pat_record[0] = pat_record[0].split(options[:hpo_separator])
-        else
-          pat_record[0] = []
-        end
-        pat_record[2] = pat_record[2].to_i if !options[:start_col].nil?
-        pat_record[3] = pat_record[3].to_i if !options[:end_col].nil?
-        patient_data[pat_id] = pat_record
-      end
-      count +=1
-    end
-    options[:pat_id_col] = 'generated' if fields2extract[:pat_id_col].nil?
-    return patient_data
-end 
-
-def get_fields2extract(options)
-  fields2extract = {}
-  [:pat_id_col, :hpo_col, :chromosome_col, :start_col, :end_col].each do |field|
-    col = options[field]
-    if !col.nil?
-      col = col.to_i if !options[:header]
-      fields2extract[field] = col
-    end
-  end
-  return fields2extract
-end
-
-def get_field_numbers2extract(field_names, fields2extract)
-  fields2extract.each do |field, name|
-    fields2extract[field] = field_names.index(name)
-  end
 end
 
 def download(ftp_server, path, name)

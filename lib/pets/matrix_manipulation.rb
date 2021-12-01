@@ -1,62 +1,37 @@
 # TODO: Ver de llamar a Netanalyzer aqui para usar su expansion del Numo Narray para meter metodos para tranformar un hash en matriz y viceversa. 
 # Tb meterle metodos para escribir y lerr matrices con npy
-
-def generate_patient_hpo_matrix(patient_data, cohort_hpos)
-  matrix = []
-  n = cohort_hpos.length
-  patient_data.each do |pat_id, pat_hpos|
-    vector = Array.new(n, 0)
-    pat_hpos.each do |hpo|
-      vector[cohort_hpos.index(hpo)] = 1
-    end
-    matrix << vector
-  end
-  return matrix
-end
-
-def generate_patient_hpo_matrix_numo(patient_data, cohort_hpos)
-  y_names = patient_data.keys
-  x_names = cohort_hpos
-  x_names_indx = {}
-  cohort_hpos.each_with_index{|hp,x| x_names_indx[hp]=x}
-  # row (y), cols (x)
-  matrix = Numo::DFloat.zeros(patient_data.length, cohort_hpos.length)
+def hash2bin_matrix(hash)
+  x_names_indx = get_hash_values_idx(hash)
+  y_names = hash.keys
+  x_names = x_names_indx.keys
+   # row (y), cols (x)
+  matrix = Numo::DFloat.zeros(hash.length, x_names.length)
   i = 0
-  patient_data.each do |pat_id, pat_hpos|
-    pat_hpos.each do |hp|
-      matrix[i, x_names_indx[hp]] = 1
+  hash.each do |id, items|
+    items.each do |item_id|
+      matrix[i, x_names_indx[item_id]] = 1
     end
     i += 1
   end
   return matrix, y_names, x_names
 end
 
-def format_profiles_similarity_data(profiles_similarity)
-  matrix = []
-  element_names = profiles_similarity.keys
-  matrix << element_names
-  profiles_similarity.each do |elementA, relations|
-    row = [elementA]
-    element_names.each do |elementB|
-      if elementA == elementB
-        row << 'NA'
-      else
-        query = relations[elementB]
-        if !query.nil?
-          row << query
-        else
-          row << profiles_similarity[elementB][elementA]
-        end
+def get_hash_values_idx(hash)
+  x_names_indx = {}
+  i = 0
+  hash.each do |k, items|
+    items.each do |item_id|
+      query = x_names_indx[item_id]
+      if query.nil?
+        x_names_indx[item_id] = i
+        i += 1
       end
     end
-    matrix << row
   end
-  matrix[0].unshift('pat')
-  return matrix
+  return x_names_indx
 end
 
-
-def format_profiles_similarity_data_numo(profiles_similarity)
+def hash2weighted_matrix(profiles_similarity)
   element_names = profiles_similarity.keys
   matrix = Numo::DFloat.zeros(element_names.length, element_names.length)
   i = 0
@@ -76,10 +51,8 @@ def format_profiles_similarity_data_numo(profiles_similarity)
   return matrix, element_names
 end
 
-def read_excluded_hpo_file(file)
-  excluded_hpo = []
-  File.open(file).each do |line|
-    excluded_hpo << line.chomp
-  end
-  return excluded_hpo
+def save_matrix(matrix, matrix_filename, x_axis_names, x_axis_file, y_axis_names=nil, y_axis_file=nil)
+  File.open(x_axis_file, 'w'){|f| f.print x_axis_names.join("\n") }
+  File.open(y_axis_file, 'w'){|f| f.print y_axis_names.join("\n") } if !y_axis_names.nil?
+  Npy.save(matrix_filename, matrix)
 end

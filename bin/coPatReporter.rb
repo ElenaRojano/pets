@@ -40,9 +40,9 @@ OptionParser.new do |opts|
     options[:chromosome_col] = data
   end
 
-  options[:pat_id_col] = nil
+  options[:id_col] = nil
   opts.on("-d", "--pat_id_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the patient id") do |data|
-    options[:pat_id_col] = data
+    options[:id_col] = data
   end
 
   options[:excluded_hpo] = nil
@@ -91,9 +91,9 @@ OptionParser.new do |opts|
     options[:clustering_methods] = data.split(',')
   end
 
-  options[:hpo_names] = false
+  options[:names] = false
   opts.on("-n", "--hpo_names", "Define if the input HPO are human readable names. Default false") do
-    options[:hpo_names] = true
+    options[:names] = true
   end
 
   options[:output_file] = nil
@@ -106,14 +106,14 @@ OptionParser.new do |opts|
     options[:hpo_file] = value
   end
 
-  options[:hpo_col] = nil
+  options[:ont_col] = nil
   opts.on("-p", "--hpo_term_col INTEGER/STRING", "Column name if header true or 0-based position of the column with the HPO terms") do |data|
-  	options[:hpo_col] = data
+  	options[:ont_col] = data
   end
 
-  options[:hpo_separator] = '|'
+  options[:separator] = '|'
   opts.on("-S", "--hpo_separator STRING", "Set which character must be used to split the HPO profile. Default '|'") do |data|
-  	options[:hpo_separator] = data
+  	options[:separator] = data
   end
 
   options[:start_col] = nil
@@ -174,80 +174,68 @@ cluster_ic_data_file = File.join(temp_folder, 'cluster_ic_data.txt')
 cluster_chromosome_data_file = File.join(temp_folder, 'cluster_chromosome_data.txt')
 coverage_to_plot_file = File.join(temp_folder, 'coverage_data.txt')
 sor_coverage_to_plot_file = File.join(temp_folder, 'sor_coverage_data.txt')
+ronto_file = File.join(temp_folder, 'hpo_freq_colour')
+
 
 Dir.mkdir(temp_folder) if !File.exists?(temp_folder)
 
 hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
-hpo = load_hpo_ontology(hpo_file, options[:excluded_hpo])
+Cohort.load_ontology(:hpo, hpo_file, options[:excluded_hpo])
+Cohort.act_ont = :hpo
 
-patient_data = load_patient_cohort(options)
+patient_data, rejected_hpos_L, rejected_patients_L = Cohort_Parser.load(options)
+rejected_hpos_C, rejected_patients_C = patient_data.check
+rejected_hpos = rejected_hpos_L | rejected_hpos_C
+rejected_patients = rejected_patients_L + rejected_patients_C
+File.open(rejected_file, 'w'){|f| f.puts (rejected_patients).join("\n")}
 
-rejected_hpos, rejected_patients = format_patient_data(patient_data, options, hpo)
-File.open(rejected_file, 'w'){|f| f.puts rejected_patients.join("\n")}
-patient_data.select!{|pat_id, patient_record| !rejected_patients.include?(pat_id)}
-patient_uniq_profiles, equivalence = get_uniq_hpo_profiles(patient_data)
-hpo.load_profiles(patient_uniq_profiles)
+patient_data.link2ont(Cohort.act_ont) # TODO: check if method load should call to this and use the semtools checking methods (take care to only remove invalid terms)
 
-profile_sizes, parental_hpos_per_profile = get_profile_redundancy(hpo)
-clean_patient_profiles(hpo, patient_uniq_profiles)
-cohort_hpos, suggested_childs, fraction_terms_specific_childs = compute_hpo_list_and_childs(patient_uniq_profiles, hpo)
-ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables(hpo)
+profile_sizes, parental_hpos_per_profile = patient_data.get_profile_redundancy
+_, _ = patient_data.check(hard=true)
+hpo_stats = patient_data.get_profiles_terms_frequency() # hpo NAME, freq
+hpo_stats.each{ |stat| stat[1] = stat[1]*100}
+File.open(hpo_frequency_file, 'w') do |f|
+  patient_data.get_profiles_terms_frequency(translate: false).each do |hpo_code, freq| # hpo CODE, freq
+    f.puts "#{hpo_code.to_s}\t#{freq}"
+  end
+end
+suggested_childs, fraction_terms_specific_childs = patient_data.compute_term_list_and_childs()
+ontology_levels, distribution_percentage = patient_data.get_profile_ontology_distribution_tables()
+onto_ic, freq_ic, onto_ic_profile, freq_ic_profile = patient_data.get_ic_analysis()
 
-onto_ic, freq_ic = hpo.get_observed_ics_by_onto_and_freq # IC for TERMS
-onto_ic_profile, freq_ic_profile = hpo.get_profiles_resnik_dual_ICs # IC for PROFILES
 if options[:ic_stats] == 'freq_internal'
-  ic_file = ENV['ic_file']
-  ic_file = IC_FILE if ic_file.nil?
+  ic_file = !ENV['ic_file'].nil? ? ENV['ic_file'] : IC_FILE
   freq_ic = load_hpo_ci_values(ic_file)
   phenotype_ic = freq_ic
   freq_ic_profile = {}
-  patient_uniq_profiles.each do |pat_id, phenotypes|
+  patient_data.each_profile do |pat_id, phenotypes|
     freq_ic_profile[pat_id] = get_profile_ic(phenotypes, phenotype_ic)
   end
-else
-  if options[:ic_stats] == 'freq'
-    phenotype_ic = freq_ic
-  elsif options[:ic_stats] == 'onto'
-    phenotype_ic = onto_ic
-  end
+elsif options[:ic_stats] == 'freq'
+  phenotype_ic = freq_ic
+elsif options[:ic_stats] == 'onto'
+  phenotype_ic = onto_ic
 end
-clustered_patients = cluster_patients(patient_uniq_profiles, cohort_hpos, matrix_file, clustered_patients_file) 
-all_ics, profile_lengths, cluster_data_by_chr, top_cluster_phen, multi_chr_patients = process_clustered_patients(options, clustered_patients, patient_uniq_profiles, patient_data, equivalence, hpo, phenotype_ic)
-get_patient_hpo_frequency(patient_uniq_profiles, hpo_frequency_file)
 
-summary_stats = get_summary_stats(patient_uniq_profiles, rejected_patients, cohort_hpos, hpo)
-summary_stats << ['Percentage of HPO with more specific children', (fraction_terms_specific_childs * 100).round(4)]
-summary_stats << ['DsI for uniq HP terms', hpo.get_dataset_specifity_index('uniq')]
-summary_stats << ['DsI for frequency weigthed HP terms', hpo.get_dataset_specifity_index('weigthed')]
+clustered_patients = dummy_cluster_patients(patient_data.profiles, matrix_file, clustered_patients_file) 
+all_ics, prof_lengths, clust_by_chr, top_clust_phen, multi_chr_pats = process_dummy_clustered_patients(options, clustered_patients, patient_data, phenotype_ic)
 
-hpo_stats = hpo.get_profiles_terms_frequency()
-hpo_stats.each{ |stat| stat[1] = stat[1]*100}
-summary_stats << ['Number of unknown phenotypes', rejected_hpos.length]
+summary_stats = get_summary_stats(patient_data, rejected_patients, hpo_stats, fraction_terms_specific_childs, rejected_hpos)
 
 all_cnvs_length = []
 if !options[:chromosome_col].nil?
-  summary_stats << ['Number of clusters with mutations accross > 1 chromosomes', multi_chr_patients]
+  summary_stats << ['Number of clusters with mutations accross > 1 chromosomes', multi_chr_pats]
   
   #----------------------------------
   # Prepare data to plot coverage
   #----------------------------------
   if options[:coverage_analysis]
-    processed_patient_data = process_patient_data(patient_data)
-    cnv_sizes = []
-    processed_patient_data.each do |chr, metadata|
-      metadata.each do |patientID, start, stop|
-        cnv_sizes << stop - start
-      end
-    end
-    cnv_size_average = cnv_sizes.inject{ |sum, el| sum + el }.fdiv(cnv_sizes.length.to_f)
-    patients_by_cluster, sors = generate_cluster_regions(processed_patient_data, 'A', 0)
-    total_patients_sharing_sors = []
-    all_patients = patients_by_cluster.keys
-    all_patients.each do |identifier|
-      total_patients_sharing_sors << identifier.split('_i').first
-    end
-    all_cnvs_length = get_cnvs_length(patient_data)
-    
+    patient_data.index_vars
+    all_cnvs_length = patient_data.get_vars_sizes(true)
+    cnv_size_average = get_mean_size(all_cnvs_length)
+    patients_by_cluster, sors = patient_data.generate_cluster_regions(:reg_overlap, 'A', 0)
+
     ###1. Process CNVs
     raw_coverage, n_cnv, nt, pats_per_region = calculate_coverage(sors)
     summary_stats << ['Average variant size', cnv_size_average.round(4)]
@@ -259,7 +247,7 @@ if !options[:chromosome_col].nil?
     ###2. Process SORs
     raw_sor_coverage, n_sor, nt, pats_per_region = calculate_coverage(sors, options[:patients_filter] - 1)
     summary_stats << ["Number of genome window shared by >= #{options[:patients_filter]} patients", n_sor]
-    summary_stats << ["Number of patients with at least 1 SOR", total_patients_sharing_sors.uniq.length]
+    summary_stats << ["Number of patients with at least 1 SOR", patients_by_cluster.length]
     summary_stats << ['Nucleotides affected by mutations', nt]
     # summary_stats << ['Patient average per region', pats_per_region]
     sor_coverage_to_plot = get_final_coverage(raw_sor_coverage, options[:bin_size])
@@ -275,20 +263,16 @@ write_detailed_hpo_profile_evaluation(suggested_childs, detailed_profile_evaluat
 write_arrays4scatterplot(onto_ic.values, freq_ic.values, hpo_ic_file, 'OntoIC', 'FreqIC') # hP terms
 write_arrays4scatterplot(onto_ic_profile.values, freq_ic_profile.values, hpo_profile_ic_file, 'OntoIC', 'FreqIC') #HP profiles
 write_arrays4scatterplot(profile_sizes, parental_hpos_per_profile, parents_per_term_file, 'ProfileSize', 'ParentTerms')
+write_cluster_ic_data(all_ics, prof_lengths, cluster_ic_data_file, options[:clusters2graph])
 
 system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{hpo_ic_file} -o #{File.join(temp_folder, 'hpo_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology IC' --y_tag 'HP Frequency based IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_ics.pdf'))
 system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{hpo_profile_ic_file} -o #{File.join(temp_folder, 'hpo_profile_ics.pdf')} -x 'OntoIC' -y 'FreqIC' --x_tag 'HP Ontology Profile IC' --y_tag 'HP Frequency based Profile IC' --x_lim '0,4.5' --y_lim '0,4.5'") if !File.exists?(File.join(temp_folder, 'hpo_profile_ics.pdf'))
 system_call(EXTERNAL_CODE, 'plot_scatterplot_simple.R', "-i #{parents_per_term_file} -o #{File.join(temp_folder, 'parents_per_term.pdf')} -x 'ProfileSize' -y 'ParentTerms' --x_tag 'Patient HPO profile size' --y_tag 'Parent HPO terms within the profile'")
-
-###Cohort frequency calculation
-ronto_file = File.join(temp_folder, 'hpo_freq_colour')
-system_call(EXTERNAL_CODE, 'ronto_plotter.R', "-i #{hpo_frequency_file} -o #{ronto_file} --root_node #{options[:root_node]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png')
-
-write_cluster_ic_data(all_ics, profile_lengths, cluster_ic_data_file, options[:clusters2graph])
+system_call(EXTERNAL_CODE, 'ronto_plotter.R', "-i #{hpo_frequency_file} -o #{ronto_file} --root_node #{options[:root_node]} -O #{hpo_file.gsub('.json','.obo')}") if !File.exist?(ronto_file + '.png') ###Cohort frequency calculation
 system_call(EXTERNAL_CODE, 'plot_boxplot.R', "#{cluster_ic_data_file} #{temp_folder} cluster_id ic 'Cluster size/id' 'Information coefficient' 'Plen' 'Profile size'")
 
 if !options[:chromosome_col].nil?
-  write_cluster_chromosome_data(cluster_data_by_chr, cluster_chromosome_data_file, options[:clusters2graph])
+  write_cluster_chromosome_data(clust_by_chr, cluster_chromosome_data_file, options[:clusters2graph])
   system_call(EXTERNAL_CODE, 'plot_scatterplot.R', "#{cluster_chromosome_data_file} #{temp_folder} cluster_id chr count 'Cluster size/id' 'Chromosome' 'Patients'")
   if options[:coverage_analysis]
     ###1. Process CNVs
@@ -301,71 +285,13 @@ if !options[:chromosome_col].nil?
 end
 
 #----------------------------------
-# CLUSTER COHORT ANALYZER REPORT
-#----------------------------------
-Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do |method_name|
-  matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.npy")
-  axis_file = matrix_filename.gsub('.npy','.lst')
-  profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
-  clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
-  if !File.exists?(matrix_filename)
-    profiles_similarity = hpo.compare_profiles(sim_type: method_name.to_sym)
-    write_profile_pairs(profiles_similarity, profiles_similarity_filename)
-    similarity_matrix, axis_names = format_profiles_similarity_data_numo(profiles_similarity)
-    File.open(axis_file, 'w'){|f| f.print axis_names.join("\n") }
-    Npy.save(matrix_filename, similarity_matrix)
-  end
-  ext_var = ''
-  if method_name == 'resnik'
-    ext_var = '-m max'
-  elsif method_name == 'lin'
-    ext_var = '-m comp1'
-  end
-  out_file = File.join(temp_folder, method_name)
-  system_call(EXTERNAL_CODE, 'plot_heatmap.R', "-y #{axis_file} -d #{matrix_filename} -o #{out_file} -M #{options[:minClusterProportion]} -t dynamic -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
-  clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_uniq_profiles)
-  get_cluster_metadata(clusters_info, clusters_distribution_filename)
-  out_file = File.join(temp_folder, ['clusters_distribution', method_name].join('_'))
-  system_call(EXTERNAL_CODE, 'xyplot_graph.R', "-d #{clusters_distribution_filename} -o #{out_file} -x PatientsNumber -y HPOAverage") if !File.exists?(out_file)
-  clusters = translate_codes(clusters_codes, hpo)
-  
-  container = {
-    :temp_folder => temp_folder,
-    :cluster_name => method_name,
-    :clusters => clusters,
-    :hpo => hpo
-   }
-
-  template = File.open(File.join(REPORT_FOLDER, 'cluster_report.erb')).read
-  report = Report_html.new(container, 'Patient clusters report')
-  report.build(template)
-  report.write(options[:output_file]+"_#{method_name}_clusters.html")
-  system_call(EXTERNAL_CODE, 'generate_boxpot.R', "-i #{temp_folder} -m #{method_name} -o #{File.join(temp_folder, method_name + '_sim_boxplot')}") if !File.exists?(File.join(temp_folder, 'sim_boxplot.png'))
-end
-
-
-
-#----------------------------------
 # GENERAL COHORT ANALYZER REPORT
 #----------------------------------
-total_patients = 0
-new_cluster_phenotypes = {}
-phenotypes_frequency = Hash.new(0)
-top_cluster_phen.each_with_index do |cluster, clusterID|
-  total_patients = cluster.length
-  cluster.each do |phenotypes|
-    phenotypes.each do |p|
-      phenotypes_frequency[p] += 1
-    end
-  end
-  new_cluster_phenotypes[clusterID] = [total_patients, phenotypes_frequency.keys, phenotypes_frequency.values.map{|v| v.fdiv(total_patients) * 100}]
-  phenotypes_frequency = Hash.new(0)
-end
-
+new_cluster_phenotypes = get_top_dummy_clusters_stats(top_clust_phen)
 
 container = {
   :temp_folder => temp_folder,
-  # :top_cluster_phen => top_cluster_phen.length,
+  # :top_clust_phen => top_clust_phen.length,
   :summary_stats => summary_stats,
   :clustering_methods => options[:clustering_methods],
   :hpo_stats => hpo_stats,
@@ -389,3 +315,8 @@ template = File.open(File.join(REPORT_FOLDER, 'cohort_report.erb')).read
 report = Report_html.new(container, 'Cohort quality report')
 report.build(template)
 report.write(options[:output_file]+'.html')
+
+#----------------------------------
+# CLUSTER COHORT ANALYZER REPORT
+#----------------------------------
+get_semantic_similarity_clustering(options, patient_data, temp_folder)

@@ -81,8 +81,20 @@ class Cohort_Parser
 				end
 			end
 			variants = record.map{|v| v[1..3]}
-			cohort.add_record([id, terms, variants])
+			cohort.add_record([id, terms, check_variants(variants)])
 		end
 		return cohort, rejected_terms, rejected_recs
+	end
+
+	def self.check_variants(vars)
+		checked_vars = []
+		vars.each do |var| #[chr, start, stop]
+			if var.first == '-' # the chr must be defined
+				STDERR.puts "WARNING: variant #{var.join(',')} has been removed"
+			else
+				checked_vars << var
+			end
+		end
+		return vars
 	end
 end

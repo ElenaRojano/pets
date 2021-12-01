@@ -43,6 +43,7 @@ class Cohort
 	def initialize()
 		@profiles = {}
 		@vars = {}
+		@var_idx = Genomic_Feature.new([])
 	end
 
 	def add_record(rec) #[id, [profile], [[chr1, start1, stop1],[chr1, start1, stop1]]]
@@ -66,6 +67,12 @@ class Cohort
 	def each_profile()
 		@profiles.each do |id, profile|
 			yield(id, profile)
+		end
+	end
+
+	def each_var()
+		@vars.each do |id, var_info|
+			yield(id, var_info)
 		end
 	end
 
@@ -147,5 +154,29 @@ class Cohort
 		ont = @@ont[Cohort.act_ont]
 		dsi = ont.get_dataset_specifity_index(type)
 		return dsi
+	end
+
+	def compare_profiles(options={})
+		ont = @@ont[Cohort.act_ont]
+		similarities = ont.compare_profiles(**options)
+		return similarities
+	end
+
+	def index_vars # equivalent to process_patient_data
+		each_var do |id, var|
+			@var_idx.merge(var, id)
+		end
+	end
+
+	def get_vars_sizes(summary=false)
+		if summary
+			return @var_idx.get_summary_sizes
+		else
+			return @var_idx.get_sizes
+		end
+	end
+
+	def generate_cluster_regions(meth, tag, lim)
+		@var_idx.generate_cluster_regions(meth, tag, lim)
 	end
 end
