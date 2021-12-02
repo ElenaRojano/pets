@@ -1,3 +1,5 @@
+require 'csv'
+
 def load_hpo_ontology(hpo_file, excluded_hpo_file)
   hpo = nil
   if !hpo_file.include?('.json')

@@ -1,3 +1,6 @@
+require 'numo/narray'
+require 'npy'
+
 # TODO: Ver de llamar a Netanalyzer aqui para usar su expansion del Numo Narray para meter metodos para tranformar un hash en matriz y viceversa. 
 # Tb meterle metodos para escribir y lerr matrices con npy
 def hash2bin_matrix(hash)

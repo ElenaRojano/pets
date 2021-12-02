@@ -6,10 +6,7 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 require 'benchmark'
 require 'parallel'
 require 'optparse'
-require 'csv'
-require 'npy'
 require 'report_html'
-require 'semtools'
 require 'pets'
 
 ##########################

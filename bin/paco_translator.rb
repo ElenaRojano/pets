@@ -4,55 +4,8 @@ ROOT_PATH = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
-require 'semtools'
-require 'generalMethods.rb'
 require 'constants.rb'
-
-###############
-#METHODS
-###############
-
-def translate_hpo(patient_data, hpo, translate)
-  reject_pats = []
-  patient_data.each do |patientID, patient_record|
-    hpos, chr, start, stop = patient_record
-    if translate == 'names'
-      # hpos, rejected = hpo.translate_codes2names(hpos)
-      hpos, rejected = hpo.translate_ids(hpos)
-    elsif translate =='codes'
-      # hpos, rejected = hpo.translate_names2codes(hpos)
-      hpos, rejected = hpo.translate_names(hpos)
-      STDERR.puts(" The ontology names '#{rejected.join(',')}' were not found") if !rejected.empty?
-    end
-    if hpos.empty?
-      reject_pats << patientID 
-    else
-      patient_record[0] = hpos
-    end
-  end
-  reject_pats.each do | rj_pat|
-    patient_data.delete(rj_pat)
-  end
-end
-
-def save_translated_file(patients_with_hpo_names, output_file, mode)
-  File.open(output_file, 'w') do |f|
-    if mode == 'paco'
-      f.puts "patient_id\tchr\tstart\tstop\tphenotypes"
-    end
-    patients_with_hpo_names.each do |id, patient_record|
-      hpos, chr, start, stop = patient_record
-      id = id.gsub(/_i[0-9]+$/,'')
-      if mode == 'default'
-        f.puts "#{id}\t#{hpos.join('|')}\t#{[chr, start, stop].join("\t")}"
-      elsif mode == 'paco'
-        f.puts "#{id}\t#{[chr, start, stop].join("\t")}\t#{hpos.join('|')}"
-      else
-        abort('Wrong save_mode] option, please try default or paco')
-      end
-    end
-  end
-end
+require 'pets'
 
 ###############
 #OPTIONS
@@ -67,9 +20,9 @@ OptionParser.new do |opts|
     options[:chromosome_col] = data
   end
 
-  options[:pat_id_col] = nil
+  options[:id_col] = nil
   opts.on("-d", "--pat_id_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the patient id") do |data|
-    options[:pat_id_col] = data
+    options[:id_col] = data
   end
 
   options[:end_col] = nil
@@ -92,9 +45,9 @@ OptionParser.new do |opts|
     options[:input_file] = value
   end
 
-  options[:hpo_col] = nil
+  options[:ont_col] = nil
   opts.on("-p", "--hpo_term_col INTEGER/STRING", "Column name if header true or 0-based position of the column with the HPO terms") do |data|
-    options[:hpo_col] = data
+    options[:ont_col] = data
   end
 
   options[:start_col] = nil
@@ -102,33 +55,33 @@ OptionParser.new do |opts|
     options[:start_col] = data
   end
 
-  options[:hpo_separator] = '|'
+  options[:separator] = '|'
   opts.on("-S", "--hpo_separator STRING", "Set which character must be used to split the HPO profile. Default '|'") do |data|
-    options[:hpo_separator] = data
+    options[:separator] = data
   end
 
-  options[:save_mode] = 'default'
+  options[:save_mode] = :default
   opts.on("-m", "--save_mode STRING", "Set output data mode") do |data|
-    options[:save_mode] = data
+    options[:save_mode] = data.to_sym
   end
 
-  options[:translate] = nil
-  opts.on("-t", "--translate STRING", "Set 'names' to translate from hpo codes to names or set 'codes' to translate from hpo names to codes. By default, ther is not translation") do |data|
-    options[:translate] = data
+  options[:names] = false
+  opts.on("-n", "--hpo_names", "Define if the input HPO are human readable names. Default false") do
+    options[:names] = true
+  end
+
+  options[:translate] = false
+  opts.on("-t", "--translate", "Set to translate from hpo codes to names. By default, ther is not translation") do 
+    options[:translate] = true
   end
 end.parse!
 
 ###############
 #MAIN
 ###############
-hpo_file = ENV['hpo_file']
-hpo_file = HPO_FILE if hpo_file.nil?
+hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
+Cohort.load_ontology(:hpo, hpo_file)
+Cohort.act_ont = :hpo
 
-patient_data = load_patient_cohort(options)
-if !options[:translate].nil?
-  # hpo = Ontology.new
-  # hpo.load_data(hpo_file)
-  hpo = Ontology.new(file: hpo_file, load_file: true)
-  translate_hpo(patient_data, hpo, options[:translate])
-end
-save_translated_file(patient_data, options[:output_file], options[:save_mode])
+patient_data, rejected_hpos, rejected_patients = Cohort_Parser.load(options)
+patient_data.save(options[:output_file], options[:save_mode], options[:translate])

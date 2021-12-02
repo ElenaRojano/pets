@@ -70,12 +70,13 @@ class Cohort_Parser
 		records.each do |id, record|
 			terms = record.first.first
 			if options[:names]
+				init_term_number = terms.length
 				terms, rec_rejected_terms = ont.translate_names(terms)
 				if !rec_rejected_terms.empty?
 					STDERR.puts "WARNING: record #{id} has the unknown term NAMES '#{rec_rejected_terms.join(',')}'. Terms removed."
 					rejected_terms.concat(rec_rejected_terms)
 				end
-				if terms.empty?
+				if terms.empty? && init_term_number > 0
 					rejected_recs << id
 					next
 				end

@@ -12,7 +12,7 @@ class Cohort
 		return @@ont[ont_id]
 	end
 
-	def self.load_ontology(ont_name, ont_file, excluded_terms_file)
+	def self.load_ontology(ont_name, ont_file, excluded_terms_file = nil)
 		ont = nil
 		if !ont_file.include?('.json')
 			if !excluded_terms_file.nil?
@@ -179,4 +179,33 @@ class Cohort
 	def generate_cluster_regions(meth, tag, lim)
 		@var_idx.generate_cluster_regions(meth, tag, lim)
 	end
+
+	def save(output_file, mode = :default, translate = false)
+		File.open(output_file, 'w') do |f|
+			f.puts "id\tchr\tstart\tstop\tterms" if mode == 'paco'
+			ont = @@ont[Cohort.act_ont]
+			@profiles.each do |id, terms|
+				terms, rejected = ont.translate_ids(terms) if translate
+				id_variants = @vars[id]
+				variants = []
+				if id_variants.nil? || id_variants.length == 0
+					variants << ['-', '-', '-']
+				else
+					id_variants.each do |chr, reg|
+						variants << [chr, reg[:start], reg[:stop]]
+					end	
+				end
+				variants.each do |var|
+					if mode == :default
+						f.puts "#{id}\t#{terms.join('|')}\t#{var.join("\t")}"
+					elsif mode == :paco
+						f.puts "#{id}\t#{var.join("\t")}\t#{terms.join('|')}"
+					else
+						abort('Wrong save mode option, please try default or paco')
+					end
+				end
+			end
+		end
+	end
+
 end

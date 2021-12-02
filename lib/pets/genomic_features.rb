@@ -14,6 +14,10 @@ class Genomic_Feature
 		end
 	end
 
+	def length
+		return @regions.length
+	end
+
 	def each()
 		@regions.each do |chr, regs|
 			regs.each do |region|
