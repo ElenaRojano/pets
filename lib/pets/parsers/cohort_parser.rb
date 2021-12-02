@@ -84,7 +84,7 @@ class Cohort_Parser
 			variants = record.map{|v| v[1..3]}
 			cohort.add_record([id, terms, check_variants(variants)])
 		end
-		return cohort, rejected_terms, rejected_recs
+		return cohort, rejected_terms.uniq, rejected_recs
 	end
 
 	def self.check_variants(vars)

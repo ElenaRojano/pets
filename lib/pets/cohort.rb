@@ -52,6 +52,15 @@ class Cohort
 		add_gen_feat(id, vars) if !vars.nil?
 	end
 
+	def remove_incomplete_records
+		ids_with_terms = @profiles.keys
+		ids_with_vars = []
+		@vars.each{|id, regs| ids_with_vars << id if regs.length > 0}
+		full_ids = ids_with_vars & ids_with_terms
+		@profiles.select!{|id, prof| full_ids.include?(id)}
+		@vars.select!{|id, var| full_ids.include?(id)}
+	end
+
 	def add_gen_feat(id, feat_array) # [[chr1, start1, stop1],[chr1, start1, stop1]]
 		@vars[id] = Genomic_Feature.new(feat_array)
 	end

@@ -28,6 +28,28 @@ def read_excluded_hpo_file(file)
   return excluded_hpo
 end
 
+def write_hash(hash, file_path, header = [])
+  File.open(file_path, 'w') do |handler|
+    handler.puts header.join("\t") if !header.empty?
+    hash.each do |key, array|
+      handler.puts "#{key}\t#{array.join("\t")}"
+    end
+  end
+end
+
+def write_array(array, file_path)
+  File.open(file_path, 'w') do |handler|
+    array.each do |record|
+      if record.class == String
+        line = record
+      else
+        line = record.join("\t")
+      end
+      handler.puts line  
+    end
+  end
+end
+
 def write_matrix_for_R(matrix, x_names, y_names, file)
   File.open(file, 'w') do |f|
     f.puts x_names.join("\t")
