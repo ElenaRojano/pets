@@ -5,21 +5,7 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 
 require 'optparse'
 require 'report_html'
-require 'semtools'
 require 'pets'
-
-
-#############################################################################################
-## METHODS
-############################################################################################
-def procces_patient_data(patient_data, hpo)
-	clean_profiles = {}
-	patient_data.each do |pat_id, data|
-		profile = hpo.clean_profile_hard(data.first.map{|c| c.to_sym})
-		clean_profiles[pat_id] = profile if !profile.empty?
-	end
-	return clean_profiles
-end
 
 #############################################################################################
 ## OPTPARSE
@@ -34,9 +20,9 @@ OptionParser.new do |opts|
     options[:chromosome_col] = data
   end
 
-  options[:pat_id_col] = nil
+  options[:id_col] = nil
   opts.on("-d", "--pat_id_col INTEGER/STRING", "Column name if header is true, otherwise 0-based position of the column with the patient id") do |data|
-    options[:pat_id_col] = data
+    options[:id_col] = data
   end
 
   options[:end_col] = nil
@@ -59,9 +45,9 @@ OptionParser.new do |opts|
     options[:input_file] = value
   end
 
-  options[:hpo_col] = nil
+  options[:ont_col] = nil
   opts.on("-p", "--hpo_term_col INTEGER/STRING", "Column name if header true or 0-based position of the column with the HPO terms") do |data|
-    options[:hpo_col] = data
+    options[:ont_col] = data
   end
 
   options[:start_col] = nil
@@ -69,9 +55,14 @@ OptionParser.new do |opts|
     options[:start_col] = data
   end
 
-  options[:hpo_separator] = '|'
+  options[:separator] = '|'
   opts.on("-S", "--hpo_separator STRING", "Set which character must be used to split the HPO profile. Default '|'") do |data|
-    options[:hpo_separator] = data
+    options[:separator] = data
+  end
+
+  options[:term_freq] = 0
+  opts.on("-f", "--general_prof_freq INTEGER", "When reference profile is not given, a general ine is computed with all profiles. If a freq is defined (0-1), all terms with freq minor than limit are removed") do |data|
+    options[:term_freq] = data.to_i
   end
 
   options[:matrix_limits] = [20, 40]
@@ -93,19 +84,21 @@ end.parse!
 #############################################################################################
 ## MAIN
 ############################################################################################
-patient_data = load_patient_cohort(options)
 
 hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
-hpo = Ontology.new
-hpo.read(hpo_file)
+Cohort.load_ontology(:hpo, hpo_file)
+Cohort.act_ont = :hpo
+hpo = Cohort.get_ontology(Cohort.act_ont)
+patient_data, _, _ = Cohort_Parser.load(options)
+patient_data.check(hard=true)
 
-clean_profiles = procces_patient_data(patient_data, hpo)
+clean_profiles = patient_data.profiles
 if !options[:ref_prof].nil?
   ref_profile = hpo.clean_profile_hard(options[:ref_prof])
 else
-  ref_profile = hpo.clean_profile_hard(clean_profiles.flatten.uniq)
+  ref_profile = patient_data.get_general_profile(options[:term_freq])
 end
-hpo.load_profiles({ref: ref_profile})
+hpo.load_profiles({ref: ref_profile}, reset_stored: true)
 
 similarities = hpo.compare_profiles(external_profiles: clean_profiles, sim_type: :lin, bidirectional: false)
 

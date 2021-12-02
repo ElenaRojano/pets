@@ -189,7 +189,7 @@ File.open(rejected_file, 'w'){|f| f.puts (rejected_patients).join("\n")}
 patient_data.link2ont(Cohort.act_ont) # TODO: check if method load should call to this and use the semtools checking methods (take care to only remove invalid terms)
 
 profile_sizes, parental_hpos_per_profile = patient_data.get_profile_redundancy
-_, _ = patient_data.check(hard=true)
+patient_data.check(hard=true)
 hpo_stats = patient_data.get_profiles_terms_frequency() # hpo NAME, freq
 hpo_stats.each{ |stat| stat[1] = stat[1]*100}
 File.open(hpo_frequency_file, 'w') do |f|

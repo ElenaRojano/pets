@@ -85,6 +85,22 @@ class Cohort
 		end
 	end
 
+	def get_general_profile(thr=0) # TODO move funcionality to semtools
+		term_count = Hash.new(0)
+		each_profile do |id, prof|
+			prof.each do |term|
+				general_profile[prof] += 1
+			end
+		end
+		records = @profiles.length
+		general_profile = []
+		term_count.each do |term, count|
+			general_profile << term if count.fdiv(records) >= thr
+		end
+		ont = @@ont[Cohort.act_ont]
+		return ont.clean_profile_hard(general_profile)
+	end
+
 	def check(hard=false) # OLD format_patient_data
 		ont = @@ont[Cohort.act_ont]
 		rejected_terms = []
