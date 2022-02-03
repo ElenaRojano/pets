@@ -1,3 +1,4 @@
+require 'expcalc'
 def translate_codes(clusters, hpo)
   translated_clusters = []
   clusters.each do |clusterID, num_of_pats, patientIDs_ary, patient_hpos_ary|
@@ -87,7 +88,7 @@ def dummy_cluster_patients(patient_data, matrix_file, clust_pat_file)
     pat_hpo_matrix, pat_id, hp_id  = hash2bin_matrix(patient_data)
     x_axis_file = matrix_file.gsub('.npy','_x.lst')
     y_axis_file = matrix_file.gsub('.npy','_y.lst')
-    save_matrix(pat_hpo_matrix, matrix_file, hp_id, x_axis_file, pat_id, y_axis_file)
+    pat_hpo_matrix.save(matrix_file, hp_id, x_axis_file, pat_id, y_axis_file)
   end
   system_call(EXTERNAL_CODE, 'get_clusters.R', "-d #{matrix_file} -o #{clust_pat_file} -y #{matrix_file.gsub('.npy','')}") if !File.exists?(clust_pat_file)
   clustered_patients = load_clustered_patients(clust_pat_file)
@@ -179,7 +180,7 @@ def get_semantic_similarity_clustering(options, patient_data, temp_folder)
       profiles_similarity = patient_data.compare_profiles(sim_type: method_name.to_sym)
       write_profile_pairs(profiles_similarity, profiles_similarity_filename)
       similarity_matrix, axis_names = hash2weighted_matrix(profiles_similarity)
-      save_matrix(similarity_matrix, matrix_filename, axis_names, axis_file)
+      similarity_matrix.save(matrix_filename, axis_names, axis_file)
     end
     ext_var = ''
     if method_name == 'resnik'
