@@ -85,7 +85,7 @@ end
 
 def dummy_cluster_patients(patient_data, matrix_file, clust_pat_file)
   if !File.exists?(matrix_file)
-    pat_hpo_matrix, pat_id, hp_id  = hash2bin_matrix(patient_data)
+    pat_hpo_matrix, pat_id, hp_id  = patient_data.to_bmatrix
     x_axis_file = matrix_file.gsub('.npy','_x.lst')
     y_axis_file = matrix_file.gsub('.npy','_y.lst')
     pat_hpo_matrix.save(matrix_file, hp_id, x_axis_file, pat_id, y_axis_file)
@@ -179,7 +179,7 @@ def get_semantic_similarity_clustering(options, patient_data, temp_folder)
     if !File.exists?(matrix_filename)
       profiles_similarity = patient_data.compare_profiles(sim_type: method_name.to_sym)
       write_profile_pairs(profiles_similarity, profiles_similarity_filename)
-      similarity_matrix, axis_names = hash2weighted_matrix(profiles_similarity)
+      similarity_matrix, axis_names = profiles_similarity.to_wmatrix
       similarity_matrix.save(matrix_filename, axis_names, axis_file)
     end
     ext_var = ''
