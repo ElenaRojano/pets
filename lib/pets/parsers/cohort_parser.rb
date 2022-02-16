@@ -68,7 +68,8 @@ class Cohort_Parser
 		rejected_recs = []
 		cohort = Cohort.new()
 		records.each do |id, record|
-			terms = record.first.first
+			rec = record.first
+			terms = rec.first
 			if options[:names]
 				init_term_number = terms.length
 				terms, rec_rejected_terms = ont.translate_names(terms)
@@ -81,7 +82,11 @@ class Cohort_Parser
 					next
 				end
 			end
-			variants = record.map{|v| v[1..3]}
+			if rec.length > 1 # there is genomic region attributes
+				variants = record.map{|v| v[1..3] }
+			else
+				variants = [] # Not exists genomic region attributes so we create a empty array
+			end
 			cohort.add_record([id, terms, check_variants(variants)])
 		end
 		return cohort, rejected_terms.uniq, rejected_recs
