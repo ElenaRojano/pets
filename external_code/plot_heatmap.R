@@ -153,7 +153,7 @@ if(opt$pairs){ # Load pairs
 	}
 }else{ # Load matrix
 	if(!is.null(opt$npy)){
-		axis_labels <- read.table(opt$npy, header=FALSE, stringsAsFactors=FALSE)
+		axis_labels <- read.table(opt$npy, header=FALSE, stringsAsFactors=FALSE, sep="\t")
 		data <- npyLoad(opt$data_file)
 		colnames(data) <- axis_labels$V1
 		rownames(data) <- axis_labels$V1
