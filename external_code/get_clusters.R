@@ -16,8 +16,8 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list=option_list))
 
 if(!is.null(opt$npy)){
-	x_axis_labels <- read.table(paste0(opt$npy, '_x.lst'), header=FALSE, stringsAsFactors=FALSE)
-	y_axis_labels <- read.table(paste0(opt$npy, '_y.lst'), header=FALSE, stringsAsFactors=FALSE)
+	x_axis_labels <- read.table(paste0(opt$npy, '_x.lst'), header=FALSE, stringsAsFactors=FALSE, sep="\t")
+	y_axis_labels <- read.table(paste0(opt$npy, '_y.lst'), header=FALSE, stringsAsFactors=FALSE, sep="\t")
 	matrix_data <- npyLoad(opt$data_file)
 	colnames(matrix_data) <- x_axis_labels$V1
 	rownames(matrix_data) <- y_axis_labels$V1
