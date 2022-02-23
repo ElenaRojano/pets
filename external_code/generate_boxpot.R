@@ -10,13 +10,13 @@ load_file <- function(file_path, cluster_sim_out = NULL, sim_method = 'lin'){
 	file_name <- paste0('similarity_matrix_',sim_method,'.npy')
 	sim_matrix <- RcppCNPy::npyLoad(file.path(file_path, file_name))
 	file_name <- paste0('similarity_matrix_',sim_method,'.lst')
-	axis_labels <- read.table(file.path(file_path, file_name), header=FALSE, stringsAsFactors=FALSE)
+	axis_labels <- read.table(file.path(file_path, file_name), header=FALSE, stringsAsFactors=FALSE, sep="\t")
  	colnames(sim_matrix) <- axis_labels$V1
  	rownames(sim_matrix) <- axis_labels$V1
  	diag(sim_matrix) <- NA
 	
 	file_name <- paste0(sim_method,'_clusters.txt')
- 	groups <- read.table(file.path(file_path, file_name), header=FALSE)
+ 	groups <- read.table(file.path(file_path, file_name), header=FALSE, sep="\t")
  	groups_vec <- groups[,2]
 	names(groups_vec) <- groups[,1]
  	sim_within_groups <- calc_sim_within_groups(sim_matrix, groups_vec)
