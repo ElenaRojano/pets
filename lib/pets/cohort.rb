@@ -1,3 +1,4 @@
+require 'json'
 require 'semtools'
 
 class Cohort
@@ -233,4 +234,42 @@ class Cohort
 		end
 	end
 
+	def export_phenopackets(output_folder, genome_assembly)
+		ont = @@ont[Cohort.act_ont]
+		metaData = {
+			"createdBy" => "Peter R.",
+			"resources" => [{
+				"id" => "hp",
+				"name" => "human phenotype ontology",
+				"namespacePrefix" => "HP",
+				"url" => "http://purl.obolibrary.org/obo/hp.owl",
+#				"version" => "2018-03-08",
+				"iriPrefix" => "http://purl.obolibrary.org/obo/HP_"
+			}]
+		}
+
+		@profiles.each do |id, terms|
+			phenopacket = {metaData: metaData}
+			phenopacket[:subject] = {id: id}
+			phenotypicFeatures = []
+			terms.each do |term|
+				term_name = ont.translate_id(term)
+				phenotypicFeatures << {
+					type: { id: term, label: term_name},
+					classOfOnset: {"id" => "HP:0003577", "label" => "Congenital onset"}
+				}
+			end
+			phenopacket[:phenotypicFeatures] = phenotypicFeatures
+			File.open(File.join(output_folder, id.to_s + ".json"), "w") { |f| f.write JSON.pretty_generate(phenopacket) }
+			id_variants = @vars[id]
+			variants = []
+			if id_variants.nil? || id_variants.length == 0
+				variants << ['-', '-', '-']
+			else
+				id_variants.each do |chr, reg|
+					variants << [chr, reg[:start], reg[:stop]]
+				end	
+			end
+		end
+	end
 end
