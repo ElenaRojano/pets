@@ -161,13 +161,13 @@
 	<% 
 		@hash_vars[:clustering_methods].each do |clust_method|
 			plot = File.join(@hash_vars[:temp_folder], "#{clust_method}_heatmap.png")
-			if File.exists?(plot) %>
+			if File.exist?(plot) %>
 				<%= embed_img(plot, 'width="800" height="800"') %>
 			<% else
 				puts 'File not found or method not specified.'
 			end
 			plot = File.join(@hash_vars[:temp_folder], clust_method + '_sim_boxplot.png')
-			if File.exists?(plot) %>
+			if File.exist?(plot) %>
 				<%= embed_img(plot, 'width="800" height="800"') %> 
 			<% end
 		end

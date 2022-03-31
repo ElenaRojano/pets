@@ -153,10 +153,16 @@ if(opt$pairs){ # Load pairs
 	}
 }else{ # Load matrix
 	if(!is.null(opt$npy)){
-		axis_labels <- read.table(opt$npy, header=FALSE, stringsAsFactors=FALSE, sep="\t")
 		data <- npyLoad(opt$data_file)
-		colnames(data) <- axis_labels$V1
+		axis_files <- unlist(strsplit(opt$npy, ','))
+		axis_labels <- read.table(axis_files[1], header=FALSE, stringsAsFactors=FALSE, sep="\t")
 		rownames(data) <- axis_labels$V1
+		if(length(axis_files) == 2){
+			x_axis_labels <- read.table(axis_files[2], header=FALSE, stringsAsFactors=FALSE, sep="\t")
+			colnames(data) <- x_axis_labels$V1
+		}else{
+			colnames(data) <- axis_labels$V1
+		}
 	}else{
 		data <- as.matrix(read.table(opt$data_file, sep="\t", header=opt$header, stringsAsFactors=FALSE, row.names= 1, check.names = FALSE))
 	}
@@ -186,32 +192,32 @@ if(opt$same_sets){
 	hr <- fastcluster::hclust(as.dist(matrix_transf), method="ward.D2")
 	groups <- cluster_obj_to_groups(matrix_transf, hr, opt$tree_cut_method, minProportionCluster = opt$minProportionCluster)
 
-	sim_between_groups <- calc_sim_between_groups(data, groups)
-	distance_between_groups <- 1 - sim_between_groups
-	groups_clustered <- fastcluster::hclust(as.dist(distance_between_groups), method="ward.D2")
-
+	write.table(groups, file=paste0(opt$output, '_clusters.txt'), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
+	if (opt$save_raw_clust){
+		dendrogram_groups <- as.dendrogram(hr)
+	} else { # TODO Pedro: I have no idea about the reason for the following code
+		sim_between_groups <- calc_sim_between_groups(data, groups)
+		distance_between_groups <- 1 - sim_between_groups
+		groups_clustered <- fastcluster::hclust(as.dist(distance_between_groups), method="ward.D2")
+		dendrogram_groups <- as.dendrogram(groups_clustered)
+	}
 	# Plot dendrogram to check performance
 	# png(file=file.path(opt$output, 'dendrogram_groups.png', sep=''))
 	#    plot(dendrogram_groups)
 	# dev.off()
-	######### EXPORT
-	write.table(groups, file=paste0(opt$output, '_clusters.txt'), sep="\t", quote=FALSE, col.names=FALSE, row.names= TRUE)
-	if (opt$save_raw_clust){
-		dendrogram_groups <- as.dendrogram(hr)
-	} else {
-		dendrogram_groups <- as.dendrogram(groups_clustered)
-	}
 	save(dendrogram_groups, file=paste0(opt$output, '_dendrogram_groups.RData', sep=''))
 
 }else{
 	# Calc similitudes of rows
 	mdistRows = toDistances(matrix_transf)
 	mdistCols = toDistances(matrix_transf, FALSE)
+	rownames(mdistRows) <- rownames(matrix_transf) # The square matrixes obtained have lost 
+	colnames(mdistRows) <- rownames(matrix_transf) # row and col names. We retrieve them
+	rownames(mdistCols) <- colnames(matrix_transf) # from original matrix. In previous case,
+	colnames(mdistCols) <- colnames(matrix_transf) # the matrix_transf is used directly by hclust
 	# Obtaing clustering
-	quantValue_row <- quantile(mdistRows, c(.2), na.rm = TRUE)
 	hr_row <- fastcluster::hclust(as.dist(mdistRows), method="ward.D2")
-	groups_row <- cluster_obj_to_groups(mdistRows, hr, opt$tree_cut_method)
-
+	groups_row <- cluster_obj_to_groups(mdistRows, hr_row, opt$tree_cut_method, minProportionCluster = opt$minProportionCluster)
 	quantValue_col <- quantile(mdistCols, c(.2), na.rm = TRUE)
 	hr_col <- fastcluster::hclust(as.dist(mdistCols), method="ward.D2")
 	groups_col <- cutree(hr_col, h = quantValue_col)
@@ -232,8 +238,10 @@ if(opt$same_sets){
 	heatmap.2(data, Rowv=as.dendrogram(hr), Colv=as.dendrogram(hr), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
 				xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
 }else{
-	heatmap.2(data, Rowv=as.dendrogram(hr_row), Colv=as.dendrogram(hr_col), trace="none", col=brewer.pal(11,"RdBu"), labRow = FALSE, labCol = FALSE,
-				xlab = opt$collabel, ylab = opt$rowlabel)
+	group_colours <- colorRampPalette(brewer.pal(8, "Set1"))(length(unique(groups_row)))
+	group_colours_arranged <- c(rep('#000000', length(groups_row[groups_row == 0])), group_colours[groups_row])
+	heatmap.2(data, Rowv=as.dendrogram(hr_row), Colv=as.dendrogram(hr_col), trace="none", col=brewer.pal(11,"RdBu"), dendrogram = c("row"), labRow = FALSE, labCol = FALSE,
+				xlab = opt$collabel, ylab = opt$rowlabel, RowSideColors=group_colours_arranged)
 
 }
 dev.off()

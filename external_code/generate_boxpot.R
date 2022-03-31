@@ -10,12 +10,21 @@ load_file <- function(file_path, cluster_sim_out = NULL, sim_method = 'lin'){
 	file_name <- paste0('similarity_matrix_',sim_method,'.npy')
 	sim_matrix <- RcppCNPy::npyLoad(file.path(file_path, file_name))
 	file_name <- paste0('similarity_matrix_',sim_method,'.lst')
-	axis_labels <- read.table(file.path(file_path, file_name), header=FALSE, stringsAsFactors=FALSE, sep="\t")
- 	colnames(sim_matrix) <- axis_labels$V1
- 	rownames(sim_matrix) <- axis_labels$V1
- 	diag(sim_matrix) <- NA
 	
-	file_name <- paste0(sim_method,'_clusters.txt')
+	if(file.exists(file_name)){ # squared matrix
+		axis_labels <- read.table(file.path(file_path, file_name), header=FALSE, stringsAsFactors=FALSE, sep="\t")
+	 	colnames(sim_matrix) <- axis_labels$V1
+	 	rownames(sim_matrix) <- axis_labels$V1
+	 	diag(sim_matrix) <- NA
+		file_name <- paste0(sim_method,'_clusters.txt')
+	}else{ # rectangular matrix
+		axis_labels_x <- read.table(file.path(file_path, paste0('similarity_matrix_',sim_method,'_x.lst')), header=FALSE, stringsAsFactors=FALSE, sep="\t")
+		axis_labels_y <- read.table(file.path(file_path, paste0('similarity_matrix_',sim_method,'_y.lst')), header=FALSE, stringsAsFactors=FALSE, sep="\t")
+	 	colnames(sim_matrix) <- axis_labels_x$V1
+	 	rownames(sim_matrix) <- axis_labels_y$V1
+		file_name <- paste0(sim_method,'_clusters_rows.txt')
+	}
+	
  	groups <- read.table(file.path(file_path, file_name), header=FALSE, sep="\t")
  	groups_vec <- groups[,2]
 	names(groups_vec) <- groups[,1]

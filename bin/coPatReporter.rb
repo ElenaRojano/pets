@@ -133,7 +133,15 @@ OptionParser.new do |opts|
     options[:threads] = data.to_i
   end
 
+  options[:reference_profiles] = nil
+  opts.on("--reference_profiles PATH", "Path to file tabulated file with first column as id profile and second column with ontology terms separated by separator. ") do |opt|
+    options[:reference_profiles] = opt
+  end
 
+  options[:sim_thr] = nil
+  opts.on("--sim_thr FLOAT", "Keep pairs with similarity value >= FLOAT. ") do |opt|
+    options[:sim_thr] = opt.to_f
+  end
 
   opts.on_tail("-h", "--help", "Show this message") do
     puts opts
@@ -282,6 +290,11 @@ if !options[:chromosome_col].nil?
 end
 
 #----------------------------------
+# CLUSTER COHORT ANALYZER REPORT
+#----------------------------------
+get_semantic_similarity_clustering(options, patient_data, temp_folder)
+
+#----------------------------------
 # GENERAL COHORT ANALYZER REPORT
 #----------------------------------
 new_cluster_phenotypes = get_top_dummy_clusters_stats(top_clust_phen)
@@ -307,13 +320,8 @@ new_cluster_phenotypes.each do |clusterID, info|
     container["clust_#{clusterID}"] = clust_info
     clust_info = []
 end
-
 template = File.open(File.join(REPORT_FOLDER, 'cohort_report.erb')).read
 report = Report_html.new(container, 'Cohort quality report')
 report.build(template)
 report.write(options[:output_file]+'.html')
 
-#----------------------------------
-# CLUSTER COHORT ANALYZER REPORT
-#----------------------------------
-get_semantic_similarity_clustering(options, patient_data, temp_folder)

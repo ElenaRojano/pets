@@ -168,19 +168,38 @@ def get_top_dummy_clusters_stats(top_clust_phen)
   return new_cluster_phenotypes
 end
 
+def remove_nested_entries(nested_hash)
+  empty_root_ids = []
+  nested_hash.each do |root_id, entries|
+    entries.select!{|id, val| yield(id, val)}
+    empty_root_ids << root_id if entries.empty?
+  end
+  empty_root_ids.each{|id| nested_hash.delete(id)}
+end
+
 def get_semantic_similarity_clustering(options, patient_data, temp_folder)
   template = File.open(File.join(REPORT_FOLDER, 'cluster_report.erb')).read
   hpo = Cohort.get_ontology(Cohort.act_ont)
+  reference_profiles = nil
+  reference_profiles = load_profiles(options[:reference_profiles], hpo) if !options[:reference_profiles].nil?
   Parallel.each(options[:clustering_methods], in_processes: options[:threads] ) do |method_name|
     matrix_filename = File.join(temp_folder, "similarity_matrix_#{method_name}.npy")
-    axis_file = matrix_filename.gsub('.npy','.lst')
     profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
     clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
     if !File.exists?(matrix_filename)
-      profiles_similarity = patient_data.compare_profiles(sim_type: method_name.to_sym)
+      profiles_similarity = patient_data.compare_profiles(sim_type: method_name.to_sym, external_profiles: reference_profiles)
+      remove_nested_entries(profiles_similarity){|id, sim| sim >= options[:sim_thr] } if !options[:sim_thr].nil?
       write_profile_pairs(profiles_similarity, profiles_similarity_filename)
-      similarity_matrix, axis_names = profiles_similarity.to_wmatrix
-      similarity_matrix.save(matrix_filename, axis_names, axis_file)
+      if reference_profiles.nil?
+        axis_file = matrix_filename.gsub('.npy','.lst')
+        similarity_matrix, axis_names = profiles_similarity.to_wmatrix(squared: true, symm: true)
+        similarity_matrix.save(matrix_filename, axis_names, axis_file)
+      else
+        axis_file_x = matrix_filename.gsub('.npy','_x.lst')
+        axis_file_y = matrix_filename.gsub('.npy','_y.lst')
+        similarity_matrix, y_names, x_names = profiles_similarity.to_wmatrix(squared: false, symm: true)
+        similarity_matrix.save(matrix_filename, y_names, axis_file_y, x_names, axis_file_x)
+      end
     end
     ext_var = ''
     if method_name == 'resnik'
@@ -188,9 +207,15 @@ def get_semantic_similarity_clustering(options, patient_data, temp_folder)
     elsif method_name == 'lin'
       ext_var = '-m comp1'
     end
+    cluster_file = "#{method_name}_clusters.txt"
+    if !reference_profiles.nil?
+      ext_var << ' -s' 
+      axis_file = "#{axis_file_y},#{axis_file_x}"
+      cluster_file = "#{method_name}_clusters_rows.txt"
+    end
     out_file = File.join(temp_folder, method_name)
     system_call(EXTERNAL_CODE, 'plot_heatmap.R', "-y #{axis_file} -d #{matrix_filename} -o #{out_file} -M #{options[:minClusterProportion]} -t dynamic -H #{ext_var}") if !File.exists?(out_file +  '_heatmap.png')
-    clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, "#{method_name}_clusters.txt"), patient_data)  
+    clusters_codes, clusters_info = parse_clusters_file(File.join(temp_folder, cluster_file), patient_data)  
     write_patient_hpo_stat(get_cluster_metadata(clusters_info), clusters_distribution_filename)
     out_file = File.join(temp_folder, ['clusters_distribution', method_name].join('_'))
     system_call(EXTERNAL_CODE, 'xyplot_graph.R', "-d #{clusters_distribution_filename} -o #{out_file} -x PatientsNumber -y HPOAverage") if !File.exists?(out_file)
