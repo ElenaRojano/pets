@@ -6,6 +6,19 @@ $: << File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets'))
 require 'optparse'
 require 'pets'
 
+#############################
+## METHODS
+#############################
+def load_index(path_index)
+  vcf_index = {}
+  File.open(path_index).each do |line|
+    id, path = line.chomp.split("\t")
+    vcf_index[id] = path
+  end
+  return vcf_index
+end
+
+
 ##########################
 #OPT-PARSER
 ##########################
@@ -45,6 +58,11 @@ OptionParser.new do |opts|
     options[:input_file] = data
   end
 
+  options[:vcf_index] = nil
+  opts.on("-I", "--vcf_index PATH", "VCF file with patient id pointing to vcf path") do |data|
+    options[:vcf_index] = data
+  end
+
   options[:names] = false
   opts.on("-n", "--hpo_names", "Define if the input HPO are human readable names. Default false") do
     options[:names] = true
@@ -77,6 +95,9 @@ OptionParser.new do |opts|
 
 end.parse!
 
+#############################################################
+## MAIN
+#############################################################
 hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
 Cohort.load_ontology(:hpo, hpo_file, options[:excluded_hpo])
 Cohort.act_ont = :hpo
@@ -85,4 +106,5 @@ patient_data, rejected_hpos_L, rejected_patients_L = Cohort_Parser.load(options)
 rejected_hpos_C, rejected_patients_C = patient_data.check(hard=true)
 patient_data.link2ont(Cohort.act_ont)
 
-patient_data.export_phenopackets(options[:output_folder], options[:genome_assembly])
+vcf_index = load_index(options[:vcf_index]) if !options[:vcf_index].nil?
+patient_data.export_phenopackets(options[:output_folder], options[:genome_assembly], vcf_index: vcf_index)

@@ -234,10 +234,10 @@ class Cohort
 		end
 	end
 
-	def export_phenopackets(output_folder, genome_assembly)
+	def export_phenopackets(output_folder, genome_assembly, vcf_index: nil)
 		ont = @@ont[Cohort.act_ont]
 		metaData = {
-			"createdBy" => "Peter R.",
+			"createdBy" => "PETS",
 			"resources" => [{
 				"id" => "hp",
 				"name" => "human phenotype ontology",
@@ -260,6 +260,17 @@ class Cohort
 				}
 			end
 			phenopacket[:phenotypicFeatures] = phenotypicFeatures
+			if !vcf_index.nil? && vcf_index.include?(id)
+				htsFiles = []
+				htsFiles << {
+					"uri" => "file:/" + vcf_index[id],
+			        "description" => id,
+			        "htsFormat" => "VCF",
+			        "genomeAssembly" => genome_assembly,
+			        "individualToSampleIdentifiers" => { "patient1" => id }
+				}
+				phenopacket[:htsFiles] = htsFiles
+			end
 			File.open(File.join(output_folder, id.to_s + ".json"), "w") { |f| f.write JSON.pretty_generate(phenopacket) }
 			id_variants = @vars[id]
 			variants = []
