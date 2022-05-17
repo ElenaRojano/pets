@@ -34,20 +34,9 @@ def make_report(profile_id, all_candidates, all_genomic_coordinates, similarity_
 end
 
 def get_genome_hotspots(similarity_matrixs, all_genomic_coordinates)
-	positions_group_by_chr = {}
-	all_genomic_coordinates.each do |id, region|
-		chr, start, stop, strand = region
-		query = positions_group_by_chr[chr]
-		record = [id, start, stop]
-		if query.nil?
-			positions_group_by_chr[chr] = [record]
-		else
-			query << record
-		end
-	end
-	candidates_by_window, genome_windows = generate_cluster_regions(positions_group_by_chr, 'A', 1)
-	puts candidates_by_window.inspect
-	puts genome_windows.inspect
+	regions = Genomic_Feature.new(all_genomic_coordinates.values.map{|g| g[0..2]})
+	candidates_by_window, genome_windows = regions.generate_cluster_regions(:reg_overlap, 'A', 1)
+	# TODO: COMPLETE UNTIL FULL PREDICTOR
 end
 
 
