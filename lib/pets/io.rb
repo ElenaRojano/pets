@@ -201,34 +201,16 @@ end
 
 def load_variants(variant_folder)
   variants = {}
-  coordinates = {}
-  count = 0
-  all_vars = {}
   Dir.glob(File.join(variant_folder, '*.tab')).each do |path|
     profile_id = File.basename(path, '.tab')
-    vars = {}
+    vars = []
     File.open(path).each do |line|
       fields = line.chomp.split("\t")
       chr = fields[0]
       start = fields[1].to_i
-      query = coordinates[chr]
-      if query.nil?
-        coordinates[chr] = [start]
-        count += 1
-        id = "var_#{count}"
-      else
-        if !query.include?(start)
-          query << start
-          count += 1
-          id = "var_#{count}"
-        else
-          id = all_vars.key([chr, start]) 
-        end
-      end
-      vars[id] = [chr, start]
+      vars << [chr, start, start]
     end
-    all_vars.merge!(vars)
-    variants[profile_id] = vars
+    variants[profile_id] = Genomic_Feature.new(vars)
   end
   return variants
 end

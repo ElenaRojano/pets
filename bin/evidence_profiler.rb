@@ -19,18 +19,36 @@ def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 end
 
 def make_report(profile_id, all_candidates, all_genomic_coordinates, similarity_matrixs, evidences, prof_vars, template, output)
+	var_ids, var_coors = format_variants4report(prof_vars)
 	container = {
 		profile_id: profile_id,
 		candidates: all_candidates.each{|c| c[0] = c.first.to_s},
 		genomic_coordinates: all_genomic_coordinates.transform_values{|c| c.first(2) },
 		similarity_matrixs: similarity_matrixs,
 		evidences: evidences,
-		var_ids: prof_vars.nil? ? nil : prof_vars.keys.map{|i| [i, 0]},
-		var_coordinates: prof_vars
+		var_ids: var_ids,
+		var_coordinates: var_coors
 	}
 	report = Report_html.new(container, 'Evidence profile report')
 	report.build(template)
 	report.write(File.join(output, profile_id.to_s + '.html'))
+end
+
+def format_variants4report(var_data)
+	if var_data.nil?
+		var_ids, var_coors = nil
+	else 
+		var_ids = []
+		var_coors = {}
+		count = 0
+		var_data.each do |chr, reg| 
+			var_id = "var_#{count}"
+			var_ids << [var_id, 0]
+			var_coors[var_id] = [chr.to_s, reg[:start]]
+			count += 1
+		end
+	end
+	return var_ids, var_coors
 end
 
 def get_genome_hotspots(similarity_matrixs, all_genomic_coordinates)

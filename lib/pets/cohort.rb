@@ -53,7 +53,28 @@ class Cohort
 		add_gen_feat(id, vars) if !vars.nil?
 	end
 
-	def remove_incomplete_records
+	def delete(id)
+		@profiles.delete(id)
+		@vars.delete(id)
+	end
+
+	def select_by_profile!
+		@profiles.select!{|id, profile| yield(id, profile)}
+		current_ids = @profiles.keys
+		@vars.select!{|id, var| current_ids.include?(id)}
+	end
+
+	def select_by_var!
+		@vars.select!{|id, profile| yield(id, profile)}
+		current_ids = @vars.keys
+		@profiles.select!{|id, var| current_ids.include?(id)}
+	end
+
+	def filter_by_term_number(n_terms)
+		select_by_profile!{|id, profile| profile.length >= n_terms}
+	end
+	
+	def remove_incomplete_records # remove resc that lacks of vars or phenotypes
 		ids_with_terms = @profiles.keys
 		ids_with_vars = []
 		@vars.each{|id, regs| ids_with_vars << id if regs.length > 0}

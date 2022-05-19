@@ -59,6 +59,11 @@ OptionParser.new do |opts|
     options[:separator] = data
   end
 
+  options[:n_phens] = nil
+  opts.on("--n_phens INTEGER", "Remove records with N or less phenotypes") do |data|
+    options[:n_phens] = data.to_i
+  end
+
   options[:save_mode] = :default
   opts.on("-m", "--save_mode STRING", "Set output data mode") do |data|
     options[:save_mode] = data.to_sym
@@ -83,4 +88,5 @@ Cohort.load_ontology(:hpo, hpo_file)
 Cohort.act_ont = :hpo
 
 patient_data, rejected_hpos, rejected_patients = Cohort_Parser.load(options)
+rejected_patients_by_phen = patient_data.filter_by_term_number(options[:n_phens]) if !options[:n_phens].nil?
 patient_data.save(options[:output_file], options[:save_mode], options[:translate])
