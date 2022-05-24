@@ -38,7 +38,7 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "bundler", "~> 2.0"
   spec.add_development_dependency "rake", "~> 13.0.3"
-  spec.add_development_dependency "rspec", "~> 3.10.0"
+  spec.add_development_dependency "rspec", "~> 3.11.0"
   spec.add_dependency "statistics2"
   spec.add_dependency "terminal-table"
   spec.add_dependency "semtools", "~> 0.1.0" 
@@ -46,7 +46,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency "numo-narray" 
   spec.add_dependency "npy" 
   spec.add_dependency "expcalc" 
-  spec.add_dependency "parallel", "~> 1.20.1"  
+  spec.add_dependency "parallel", "~> 1.20.1"
+  spec.add_runtime_dependency 'net-ftp'
+  spec.add_runtime_dependency 'net-http'
 
 end
 

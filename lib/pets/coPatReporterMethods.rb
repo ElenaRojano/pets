@@ -62,7 +62,8 @@ def get_profile_ic(hpo_names, phenotype_ic)
   profile_length = 0
   hpo_names.each do |hpo_id|
     hpo_ic = phenotype_ic[hpo_id]
-    ic += hpo_ic if !hpo_ic.nil?
+    raise("The term #{hpo_id} not exists in the given ic table") if hpo_ic.nil?
+    ic += hpo_ic 
     profile_length += 1
   end
   profile_length = 1 if profile_length == 0
