@@ -1,4 +1,5 @@
 require 'csv'
+require 'bio-vcf'
 
 def load_hpo_ontology(hpo_file, excluded_hpo_file)
   hpo = nil
@@ -201,18 +202,37 @@ end
 
 def load_variants(variant_folder)
   variants = {}
-  Dir.glob(File.join(variant_folder, '*.tab')).each do |path|
-    profile_id = File.basename(path, '.tab')
-    vars = []
-    File.open(path).each do |line|
-      fields = line.chomp.split("\t")
-      chr = fields[0]
-      start = fields[1].to_i
-      vars << [chr, start, start]
+  Dir.glob(File.join(variant_folder, '*.{tab,vcf,vcf.gz}')).each do |path|
+    profile_id, ext = File.basename(path).split(".", 2)
+    if ext == 'tab' || ext == 'txt'
+      vars = load_tabular_vars(path)
+    elsif ext == 'vcf' || ext == 'vcf.gz'
+      vars = load_vcf(path, ext)
     end
     variants[profile_id] = Genomic_Feature.new(vars)
   end
   return variants
+end
+
+def load_tabular_vars(path)
+  vars = []
+  File.open(path).each do |line|
+    fields = line.chomp.split("\t")
+    chr = fields[0].gsub('chr','')
+    start = fields[1].to_i
+    vars << [chr, start, start]
+  end
+  return vars
+end
+
+def load_vcf(path, ext) # Some compressed files are fragmented internally. If so, VCFfile only reads first fragment
+  vars = []             # Use zcat original.vcf.gz | gzip > new.vcf.gz to obtain a contigous file
+  vcf  = BioVcf::VCFfile.new(file: path, is_gz: ext == 'vcf.gz' ? true : false )
+  vcf.each do |var|
+    vars << [var.chrom.gsub('chr',''), var.pos, var.pos]
+  end
+  puts vars.length
+  return vars
 end
 
 def load_evidences(evidences_path, hpo)
@@ -242,6 +262,10 @@ def load_coordinates(file_path)
       header = false
     else
       entity, chr, strand, start, stop = fields
+      if chr == 'NA'
+        STDERR.puts "Warning: Record #{fields.inspect} is undefined"
+        next
+      end
       coordinates[entity] = [chr, start.to_i, stop.to_i, strand]
     end
   end

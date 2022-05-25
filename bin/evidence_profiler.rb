@@ -18,7 +18,8 @@ def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 	return coords
 end
 
-def make_report(profile_id, all_candidates, all_genomic_coordinates, similarity_matrixs, evidences, prof_vars, template, output)
+def make_report(profile_id, all_candidates, all_genomic_coordinates, similarity_matrixs, 
+							evidences, prof_vars, hotspots_with_pat_vars, template, output)
 	var_ids, var_coors = format_variants4report(prof_vars)
 	container = {
 		profile_id: profile_id,
@@ -27,7 +28,8 @@ def make_report(profile_id, all_candidates, all_genomic_coordinates, similarity_
 		similarity_matrixs: similarity_matrixs,
 		evidences: evidences,
 		var_ids: var_ids,
-		var_coordinates: var_coors
+		var_coordinates: var_coors,
+		hotspot_table: hotspots_with_pat_vars
 	}
 	report = Report_html.new(container, 'Evidence profile report')
 	report.build(template)
@@ -51,12 +53,37 @@ def format_variants4report(var_data)
 	return var_ids, var_coors
 end
 
-def get_genome_hotspots(similarity_matrixs, all_genomic_coordinates)
-	regions = Genomic_Feature.new(all_genomic_coordinates.values.map{|g| g[0..2]})
-	candidates_by_window, genome_windows = regions.generate_cluster_regions(:reg_overlap, 'A', 1)
+
+def generate_prediction(similarity_matrixs, all_genomic_coordinates, prof_vars)
+	phen_regions = Genomic_Feature.hash2genomic_feature(all_genomic_coordinates){|k, v| v[0..2].concat([k])}
+	phen_candidates_by_hotspot, phen_genome_hotspots = phen_regions.generate_cluster_regions(:reg_overlap, 'A', 0, true)
+	genome_matches = phen_genome_hotspots.match(prof_vars)
+	hotspots_with_pat_vars = []
+	hotspot_with_phen_candidates = invert_hash(phen_candidates_by_hotspot) 
+	genome_matches.each do |hotspot_id, pat_vars|
+		reg = phen_genome_hotspots.region_by_to(hotspot_id)
+		coords = [reg[:chr], reg[:start], reg[:stop]]
+		hotspots_with_pat_vars << [hotspot_id, coords, hotspot_with_phen_candidates[hotspot_id], pat_vars]
+	end
+	# TODO: see to use original similarities without use top candidates in similarity_matrixs
 	# TODO: COMPLETE UNTIL FULL PREDICTOR
+	return hotspots_with_pat_vars
 end
 
+def invert_hash(h)
+	new_h = {}
+	h.each do |k, vals|
+		vals.each do |v|
+			query = new_h[v]
+			if query.nil?
+				new_h[v] = [k]
+			else
+				query << k
+			end
+		end
+	end
+	return new_h
+end
 
 #############################################################################################
 ## OPTPARSE
@@ -142,7 +169,15 @@ profiles.each do |profile_id, reference_prof|
 		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 		all_genomic_coordinates.merge!(coords)
 	end
-	get_genome_hotspots(similarity_matrixs, all_genomic_coordinates)
 	prof_vars = profile_variants[profile_id]
-	make_report(profile_id, all_candidates, all_genomic_coordinates, similarity_matrixs, evidences, prof_vars, template, options[:output_folder])
+	hotspots_with_pat_vars = generate_prediction(similarity_matrixs, all_genomic_coordinates, prof_vars)
+	make_report(
+		profile_id, 
+		all_candidates, 
+		all_genomic_coordinates, 
+		similarity_matrixs, 
+		evidences, prof_vars,
+		hotspots_with_pat_vars,
+		template, options[:output_folder]
+	)
 end

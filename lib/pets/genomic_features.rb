@@ -1,21 +1,43 @@
 class Genomic_Feature
+	def self.array2genomic_feature(arr)
+		new(arr.map{|r| yield(r)})
+	end
+
+	def self.hash2genomic_feature(h)
+		vars = []
+		h.each do |h, v|
+			vars << yield(h, v)
+		end
+		new(vars)
+	end
+
 	#If any method use gen_fet as name is a Genomic_Feature object
 	def initialize(feat_array) # [[chr1, start1, stop1],[chr1, start1, stop1]]
 		@regions = {}
+		@reg_by_to = {}
 		@reg_id = -1
 		load_features(feat_array)
 	end
 
 	def load_features(feat_array)
-		feat_array.each do |chr, start, stop|
+		feat_array.each do |chr, start, stop, to|
 			chr = chr.to_sym
-			region = {start: start, stop: stop, to: @reg_id +=1 }
+			@reg_id +=1
+			id = to.nil? ? @reg_id : to
+			region = {chr: chr, start: start, stop: stop, to: id }
+			@reg_by_to[id] = region
 			add_record(@regions, chr, region)
 		end
 	end
 
 	def length
 		return @regions.length
+	end
+
+	def each_chr()
+		@regions.each do |chr, regs|
+			yield(chr, regs)
+		end
 	end
 
 	def each()
@@ -30,6 +52,14 @@ class Genomic_Feature
 		return @regions.keys
 	end
 
+	def get_chr_regs(chr)
+		return @regions[chr]
+	end
+
+	def region_by_to(to)
+		return @reg_by_to[to]
+	end
+
 	def get_sizes
 		sizes = []
 		each do |chr, region|
@@ -37,6 +67,24 @@ class Genomic_Feature
 			sizes << size
 		end
 		return sizes
+	end
+
+	def match(other_gen_feat)
+		all_matches = {}
+		each_chr do |chr, regs|
+			other_regs = other_gen_feat.get_chr_regs(chr)
+			next if other_regs.nil?
+			local_matches = []
+			regs.each do |reg|
+				start = reg[:start] 
+				stop = reg[:stop] 
+				other_regs.each do |other_reg|
+					local_matches << other_reg[:to] if coor_overlap?(start, stop, other_reg)
+				end
+				all_matches[reg[:to]] = local_matches if !local_matches.empty?
+			end
+		end
+		return all_matches
 	end
 
 	def get_summary_sizes
@@ -60,21 +108,21 @@ class Genomic_Feature
 		reference.each do |start, stop|
 			reg_ids = []
 			genomic_ranges.each do |reg|
-				reg_ids << reg[:to] if coor_overlap?(start, stop, reg)
+				overlap = coor_overlap?(start, stop, reg)
+				reg_ids << reg[:to] if overlap
 			end
 			overlaps << reg_ids.uniq
 		end
 		return overlaps
 	end
 
-	def generate_cluster_regions(meth, tag, ids_per_reg = 1)
+	def generate_cluster_regions(meth, tag, ids_per_reg = 1, obj = false)
 		compute_windows(meth) # Get putative genome windows
-		patients_out_of_cluster = 0
 		ids_by_cluster = {}
 		annotated_full_ref = [] # All reference windows wit uniq id and chr tagged
 		@regions.each do |chr, regs|
 			reference = @windows[chr]
-			overlaps = get_reference_overlaps(regs, reference) # See what patient has match with a overlap region
+			overlaps = get_reference_overlaps(regs, reference)
 			clust_numb = 0
 			reference.each_with_index do |ref, i|
 				current_ids = overlaps[i]
@@ -87,6 +135,7 @@ class Genomic_Feature
 				end
 			end
 		end
+		annotated_full_ref = Genomic_Feature.array2genomic_feature(annotated_full_ref){|r| [r[2], r[0], r[1], r[3]]} if obj
 		return ids_by_cluster, annotated_full_ref
 	end
 
@@ -116,15 +165,37 @@ class Genomic_Feature
 
 	def compute_region_overlap_windows(genomic_ranges)
 		reference = []
-		reference.concat(genomic_ranges.map{|gr| gr[:start]})# get start
-		reference.concat(genomic_ranges.map{|gr| gr[:stop]})# get stop
+		single_nt = []
+		genomic_ranges.each do |gr|
+			start = gr[:start]
+			stop = gr[:stop]
+			if stop - start > 0
+				reference << start # get start
+				reference << stop # get stop
+			else # Build a window of at least one nt for snv
+				single_nt << start
+			end
+		end
 		reference.uniq!
+		single_nt.each do |snt| # add start stop for snv
+			reference << snt
+			reference << snt
+		end
 		reference.sort!
 		#Define overlap ranges
 		final_reference = []
+		last_len = 1
 		reference.each_with_index do |coord,i|
 			next_coord = reference[i + 1]
-			final_reference << [coord, next_coord] if !next_coord.nil? 
+			if !next_coord.nil?
+				current_len = next_coord - coord
+				coord = coord + 1 if last_len == 0 # Separate SNV window from others
+				if current_len == 0 && last_len > 0 && !final_reference.empty?
+					final_reference.last[1] -= 1 # Separate SNV window from others
+				end
+				final_reference << [coord, next_coord]  
+				last_len = current_len
+			end
 		end
 		return final_reference
 	end

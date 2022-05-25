@@ -46,9 +46,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency "numo-narray" 
   spec.add_dependency "npy" 
   spec.add_dependency "expcalc" 
+  spec.add_dependency "bio-vcf" 
   spec.add_dependency "parallel", "~> 1.20.1"
   spec.add_runtime_dependency 'net-ftp'
   spec.add_runtime_dependency 'net-http'
-
 end
 

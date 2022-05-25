@@ -27,8 +27,24 @@
 	<% end %>
 	<%=circular_genome(id: :candidates, header: false, row_names: true, transpose: false, 
 		 genomic_coordinates: @hash_vars[:genomic_coordinates] )%>
-	<% if !@hash_vars[:var_ids].nil? %>
-		<%=circular_genome(id: :var_ids, header: false, row_names: true, transpose: false, 
-		 genomic_coordinates: @hash_vars[:var_coordinates] )%>
+	<% if !@hash_vars[:var_ids].nil? 
+		if @hash_vars[:var_ids].length > 200 %>
+			<p> Too much variant records</p>
+		<% else %>
+			<%=circular_genome(id: :var_ids, header: false, 
+				row_names: true, transpose: false, 
+		 		genomic_coordinates: @hash_vars[:var_coordinates] )%>
+		<% end %>
 	<% end %>
+
+	<h1 style="text-align: center; background-color:#d6eaf8">Candidate regions</h1>
+
+	<%=  table(id: :hotspot_table) do |data|
+			data.each do |row|
+				row[1] = row[1].join(" ")
+				row[2] = row[2].join(",")
+				row[3] = row[3].join(",")
+			end
+		end
+	%>
 </div>
