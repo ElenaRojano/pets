@@ -1,6 +1,7 @@
 require "pets/version"
 require "pets/constants"
-require "parsers/cohort_parser"
+require "pets/parsers/cohort_parser"
+require "pets/parsers/reference_parser"
 require "pets/coPatReporterMethods"
 require "pets/generalMethods"
 require "pets/io"

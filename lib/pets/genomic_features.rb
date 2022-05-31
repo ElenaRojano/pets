@@ -1,4 +1,6 @@
 class Genomic_Feature
+	@@ref = nil
+
 	def self.array2genomic_feature(arr)
 		new(arr.map{|r| yield(r)})
 	end
@@ -11,12 +13,17 @@ class Genomic_Feature
 		new(vars)
 	end
 
+	def self.add_reference(genomic_regions)
+		@@ref = genomic_regions
+	end
+
 	#If any method use gen_fet as name is a Genomic_Feature object
-	def initialize(feat_array) # [[chr1, start1, stop1],[chr1, start1, stop1]]
+	def initialize(feat_array, annotations: nil) # [[chr1, start1, stop1],[chr1, start1, stop1]]
 		@regions = {}
 		@reg_by_to = {}
 		@reg_id = -1
 		load_features(feat_array)
+		load_annotations(annotations) if !annotations.nil?
 	end
 
 	def load_features(feat_array)
@@ -27,6 +34,13 @@ class Genomic_Feature
 			region = {chr: chr, start: start, stop: stop, to: id }
 			@reg_by_to[id] = region
 			add_record(@regions, chr, region)
+		end
+	end
+
+	def load_annotations(annotations)
+		each do |chr, reg|
+			annot = annotations[reg[:to]]
+			reg[:attrs] = annot if !annot.nil?
 		end
 	end
 
@@ -69,13 +83,24 @@ class Genomic_Feature
 		return sizes
 	end
 
+	def get_features(attr_type: nil)
+		features = match(@@ref)
+		if !attr_type.nil?
+			features.each do |reg_id, feat_ids|
+				new_feat_ids = feat_ids.map{|fi| @@ref.region_by_to(fi).dig(:attrs, attr_type)}
+				features[reg_id] = new_feat_ids.compact.uniq
+			end
+		end
+		return features
+	end
+
 	def match(other_gen_feat)
 		all_matches = {}
 		each_chr do |chr, regs|
 			other_regs = other_gen_feat.get_chr_regs(chr)
 			next if other_regs.nil?
-			local_matches = []
 			regs.each do |reg|
+				local_matches = []
 				start = reg[:start] 
 				stop = reg[:stop] 
 				other_regs.each do |other_reg|
