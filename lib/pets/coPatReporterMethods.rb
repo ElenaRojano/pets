@@ -188,7 +188,18 @@ def get_semantic_similarity_clustering(options, patient_data, temp_folder)
     profiles_similarity_filename = File.join(temp_folder, ['profiles_similarity', method_name].join('_').concat('.txt'))
     clusters_distribution_filename = File.join(temp_folder, ['clusters_distribution', method_name].join('_').concat('.txt'))
     if !File.exists?(matrix_filename)
-      profiles_similarity = patient_data.compare_profiles(sim_type: method_name.to_sym, external_profiles: reference_profiles)
+      if reference_profiles.nil? 
+        profiles_similarity = patient_data.compare_profiles(sim_type: method_name.to_sym, external_profiles: reference_profiles)
+      else # AS reference profiles are constant, the sematic comparation will be A => B (A reference). So, we have to invert the elements to perform the comparation
+        ont = Cohort.get_ontology(:hpo)
+        pat_profiles = ont.profiles
+        ont.load_profiles(reference_profiles, reset_stored: true)
+        profiles_similarity = ont.compare_profiles(sim_type: method_name.to_sym, 
+          external_profiles: pat_profiles, 
+          bidirectional: false)
+        ont.load_profiles(pat_profiles, reset_stored: true)
+        profiles_similarity = invert_nested_hash(profiles_similarity)
+      end
       remove_nested_entries(profiles_similarity){|id, sim| sim >= options[:sim_thr] } if !options[:sim_thr].nil?
       write_profile_pairs(profiles_similarity, profiles_similarity_filename)
       if reference_profiles.nil?
@@ -234,6 +245,23 @@ def get_semantic_similarity_clustering(options, patient_data, temp_folder)
     report.write(options[:output_file]+"_#{method_name}_clusters.html")
     system_call(EXTERNAL_CODE, 'generate_boxpot.R', "-i #{temp_folder} -m #{method_name} -o #{File.join(temp_folder, method_name + '_sim_boxplot')}") if !File.exists?(File.join(temp_folder, 'sim_boxplot.png'))
   end
+end
+
+def invert_nested_hash(h)
+  new_h = {}
+  h.each do |k1, vals1|
+    vals1.each do |v1|
+      vals1.each do |k2, vals2|
+        query = new_h[k2]
+        if query.nil?
+          new_h[k2] = {k1 => vals2}
+        else
+          query[k1] = vals2
+        end
+      end
+    end
+  end
+  return new_h
 end
 
 def get_cluster_metadata(clusters_info)
