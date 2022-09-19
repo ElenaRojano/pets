@@ -13,8 +13,9 @@ require 'pets'
 ## METHODS
 ############################################################################################
 def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
+	coords = nil
 	all_coordinates = genomic_coordinates[entity]
-	coords = all_coordinates.select{|id, coordinates| candidates_ids.include?(id.to_sym)}
+	coords = all_coordinates.select{|id, coordinates| candidates_ids.include?(id.to_sym)} if !all_coordinates.nil?
 	return coords
 end
 
@@ -55,18 +56,20 @@ end
 
 
 def generate_prediction(similarity_matrixs, all_genomic_coordinates, prof_vars)
-	phen_regions = Genomic_Feature.hash2genomic_feature(all_genomic_coordinates){|k, v| v[0..2].concat([k])}
-	phen_candidates_by_hotspot, phen_genome_hotspots = phen_regions.generate_cluster_regions(:reg_overlap, 'A', 0, true)
-	genome_matches = phen_genome_hotspots.match(prof_vars)
 	hotspots_with_pat_vars = []
-	hotspot_with_phen_candidates = invert_hash(phen_candidates_by_hotspot) 
-	genome_matches.each do |hotspot_id, pat_vars|
-		reg = phen_genome_hotspots.region_by_to(hotspot_id)
-		coords = [reg[:chr], reg[:start], reg[:stop]]
-		hotspots_with_pat_vars << [hotspot_id, coords, hotspot_with_phen_candidates[hotspot_id], pat_vars]
+	if !prof_vars.nil?
+		phen_regions = Genomic_Feature.hash2genomic_feature(all_genomic_coordinates){|k, v| v[0..2].concat([k])}
+		phen_candidates_by_hotspot, phen_genome_hotspots = phen_regions.generate_cluster_regions(:reg_overlap, 'A', 0, true)
+		genome_matches = phen_genome_hotspots.match(prof_vars)
+		hotspot_with_phen_candidates = invert_hash(phen_candidates_by_hotspot) 
+		genome_matches.each do |hotspot_id, pat_vars|
+			reg = phen_genome_hotspots.region_by_to(hotspot_id)
+			coords = [reg[:chr], reg[:start], reg[:stop]]
+			hotspots_with_pat_vars << [hotspot_id, coords, hotspot_with_phen_candidates[hotspot_id], pat_vars]
+		end
+		# TODO: see to use original similarities without use top candidates in similarity_matrixs
+		# TODO: COMPLETE UNTIL FULL PREDICTOR
 	end
-	# TODO: see to use original similarities without use top candidates in similarity_matrixs
-	# TODO: COMPLETE UNTIL FULL PREDICTOR
 	return hotspots_with_pat_vars
 end
 
@@ -135,8 +138,7 @@ end.parse!
 ############################################################################################
 
 hpo_file = !ENV['hpo_file'].nil? ? ENV['hpo_file'] : HPO_FILE
-hpo = Ontology.new
-hpo.read(hpo_file)
+hpo = Ontology.new(file: hpo_file, load_file: true)
 
 profiles = load_profiles(options[:profiles_file], hpo)
 profile_variants = options[:variant_data].nil? ? {} : load_variants(options[:variant_data])
@@ -163,10 +165,11 @@ profiles.each do |profile_id, reference_prof|
 		entity = pair.split('_').first
 		similarities = ev_profiles_similarity[profile_id.to_sym]
 		candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(reference_prof, similarities, evidences[pair][:prof], hpo, 40, 40)
+		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 		candidate_sim_matrix.unshift(['HP'] + candidates_ids)	
+		next if coords.nil?
 		all_candidates.concat(candidates)
 		similarity_matrixs[pair] = candidate_sim_matrix
-		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 		all_genomic_coordinates.merge!(coords)
 	end
 	prof_vars = profile_variants[profile_id]
