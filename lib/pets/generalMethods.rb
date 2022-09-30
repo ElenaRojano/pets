@@ -253,9 +253,9 @@ def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, 
 			candidates.each do |cand|
 				cand_id = cand[0]
 				cand_lab = id2label[cand_id.to_s]
-				next if !cand_lab.nil?
+				next if cand_lab.nil?
 				other_score = other_scores[cand_lab]
-				next if !other_score.nil?
+				next if other_score.nil?
 				cand << other_score
 				selected_candidates << cand
 			end
