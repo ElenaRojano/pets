@@ -12,6 +12,15 @@ require 'pets'
 #############################################################################################
 ## METHODS
 ############################################################################################
+def load_pathogenic_scores(path)
+	scores = {}
+	File.open(path).each do |line|
+		feature, score = line.split("\t")
+		scores[feature] = score.to_f
+	end
+	return scores
+end
+
 def get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
 	coords = nil
 	all_coordinates = genomic_coordinates[entity]
@@ -126,6 +135,11 @@ OptionParser.new do |opts|
     options[:variant_data] = item
   end
 
+  options[:pathogenic_scores] = nil # TODO: Generalize to a folder with a table per patient
+  opts.on("-P", "--pathogenic_scores PATH", 'File with genome features an their pathogenic scores') do |item|
+    options[:pathogenic_scores] = item
+  end
+
  opts.on_tail("-h", "--help", "Show this message") do
     puts opts
     exit
@@ -143,6 +157,7 @@ hpo = Ontology.new(file: hpo_file, load_file: true)
 profiles = load_profiles(options[:profiles_file], hpo)
 profile_variants = options[:variant_data].nil? ? {} : load_variants(options[:variant_data])
 evidences, genomic_coordinates = load_evidences(options[:evidences], hpo)
+pathogenic_scores = options[:pathogenic_scores].nil? ? {} : load_pathogenic_scores(options[:pathogenic_scores])
 
 hpo.load_profiles(profiles)
 evidences_similarity = {}
@@ -151,7 +166,8 @@ evidences.each do |pair, data|
 	if profile_type == 'HP'
 		evidence_profiles = data[:prof]
 		evidence_profiles.transform_keys!{|prof_id, terms| prof_id.to_sym}
-		evidences_similarity[pair] = hpo.compare_profiles(external_profiles: evidence_profiles, sim_type: :lin, bidirectional: false)
+		similarities = hpo.compare_profiles(external_profiles: evidence_profiles, sim_type: :lin, bidirectional: false)
+		evidences_similarity[pair] = similarities if !similarities.empty?
 	end
 end 
 
@@ -166,7 +182,18 @@ profiles.each do |profile_id, reference_prof|
 		similarities = ev_profiles_similarity[profile_id.to_sym]
 		candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(reference_prof, similarities, evidences[pair][:prof], hpo, 40, 40)
 		coords = get_evidence_coordinates(entity, genomic_coordinates, candidates_ids)
-		candidate_sim_matrix.unshift(['HP'] + candidates_ids)	
+		candidate_sim_matrix.unshift(['HP'] + candidates_ids)
+		if !pathogenic_scores.empty? # priorize by pathogenic scores
+			candidate_sim_matrix_patho, candidates_patho, candidates_ids_patho = get_similarity_matrix(
+				reference_prof, similarities, 
+				evidences[pair][:prof], hpo, 40, 40, 
+				other_scores = pathogenic_scores, id2label = evidences[pair][:id2lab])
+			if !candidate_sim_matrix_patho.empty?
+				candidate_sim_matrix_patho.unshift(['HP'] + candidates_ids_patho)	
+				similarity_matrixs[pair + '_path_vars'] = candidate_sim_matrix_patho
+				evidences[pair + '_path_vars'] = evidences[pair]
+			end
+		end
 		next if coords.nil?
 		all_candidates.concat(candidates)
 		similarity_matrixs[pair] = candidate_sim_matrix

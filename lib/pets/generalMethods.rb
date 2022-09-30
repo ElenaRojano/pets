@@ -243,8 +243,27 @@ def get_detailed_similarity(profile, candidates, evidences, hpo)
 	return matrix
 end
 
-def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, term_limit, candidate_limit)
-		candidates = similarities.to_a.sort{|s1, s2| s2.last <=> s1.last}.first(candidate_limit)
+def get_similarity_matrix(reference_prof, similarities, evidence_profiles, hpo, term_limit, candidate_limit, other_scores = {}, id2label = {})
+		candidates = similarities.to_a
+		if other_scores.empty?
+			candidates.sort!{|s1, s2| s2.last <=> s1.last}
+			candidates = candidates.first(candidate_limit)
+		else # Prioritize first by the external list of scores, select the candidates and then rioritize by similarities
+			selected_candidates = []
+			candidates.each do |cand|
+				cand_id = cand[0]
+				cand_lab = id2label[cand_id.to_s]
+				next if !cand_lab.nil?
+				other_score = other_scores[cand_lab]
+				next if !other_score.nil?
+				cand << other_score
+				selected_candidates << cand
+			end
+			selected_candidates.sort!{|e1, e2| e2[2] <=> e1[2]}
+			candidates = selected_candidates.first(candidate_limit)
+			candidates.sort!{|e1, e2| e2[1] <=> e1[1]}
+			candidates.each{|c| c.pop}
+		end
 		candidates_ids = candidates.map{|c| c.first}
 		candidate_similarity_matrix = get_detailed_similarity(reference_prof, candidates, evidence_profiles, hpo)
 		candidate_similarity_matrix.each_with_index do |row, i|
