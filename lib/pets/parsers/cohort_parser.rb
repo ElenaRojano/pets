@@ -3,6 +3,7 @@ class Cohort_Parser
 		fields2extract = get_fields2extract(options)
 		field_numbers = fields2extract.values
 		records = read_records(options, fields2extract, field_numbers)
+		options[:extracted_fields] = fields2extract.keys
 		cohort, rejected_terms, rejected_recs = create_cohort(records, options)
 		return cohort, rejected_terms, rejected_recs
 	end 
@@ -46,7 +47,7 @@ class Cohort_Parser
 
 	def self.get_fields2extract(options)
 		fields2extract = {}
-		[:id_col, :ont_col, :chromosome_col, :start_col, :end_col].each do |field|
+		[:id_col, :ont_col, :chromosome_col, :start_col, :end_col, :sex_col].each do |field|
 			col = options[field]
 			if !col.nil?
 				col = col.to_i if !options[:header]
@@ -70,7 +71,7 @@ class Cohort_Parser
 		records.each do |id, record|
 			rec = record.first
 			terms = rec.first
-			if options[:names]
+			if options[:names] # Translate hpo names 2 codes
 				init_term_number = terms.length
 				terms, rec_rejected_terms = ont.translate_names(terms)
 				if !rec_rejected_terms.empty?
@@ -87,7 +88,11 @@ class Cohort_Parser
 			else
 				variants = [] # Not exists genomic region attributes so we create a empty array
 			end
-			cohort.add_record([id, terms, check_variants(variants)])
+			other_attr = {}
+			if options[:extracted_fields].include?(:sex_col) # Check for additional attributes. -1 is applied to ignore :id in extracted fields
+				other_attr[:sex] = record.first[options[:extracted_fields].index(:sex_col) -1]
+			end
+			cohort.add_record([id, terms, check_variants(variants)], other_attr)
 		end
 		return cohort, rejected_terms.uniq, rejected_recs
 	end

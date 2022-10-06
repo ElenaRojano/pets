@@ -1,4 +1,5 @@
-# Needs define ROOT_PATH constant in file requiring this file 
+# Needs define ROOT_PATH constant in file requiring this file
+COMMON_OPTPARSE = File.expand_path(File.join(ROOT_PATH, '..', 'lib', 'pets', 'common_optparse.rb'))
 REPORT_FOLDER = File.expand_path(File.join(ROOT_PATH, '..', 'templates'))
 EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 EXTERNAL_CODE = File.expand_path(File.join(ROOT_PATH, '..', 'external_code'))

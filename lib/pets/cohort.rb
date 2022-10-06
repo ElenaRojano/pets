@@ -44,12 +44,14 @@ class Cohort
 	def initialize()
 		@profiles = {}
 		@vars = {}
+		@extra_attr = {}
 		@var_idx = Genomic_Feature.new([])
 	end
 
-	def add_record(rec) #[id, [profile], [[chr1, start1, stop1],[chr1, start1, stop1]]]
+	def add_record(rec, extra_attr = nil) #[id, [profile], [[chr1, start1, stop1],[chr1, start1, stop1]]]
 		id, profile, vars = rec
 		@profiles[id] = profile.map{|t| t.to_sym} if !profile.nil? 
+		@extra_attr[id] = extra_attr if !extra_attr.nil? 
 		add_gen_feat(id, vars) if !vars.nil?
 	end
 
@@ -271,7 +273,12 @@ class Cohort
 
 		@profiles.each do |id, terms|
 			phenopacket = {metaData: metaData}
-			phenopacket[:subject] = {id: id}
+			query_sex = @extra_attr.dig(id, :sex)
+			sex = query_sex.nil? ? 'UNKNOWN_SEX' : query_sex
+			phenopacket[:subject] = {
+				id: id,
+				sex: sex
+			}
 			phenotypicFeatures = []
 			terms.each do |term|
 				term_name = ont.translate_id(term)
