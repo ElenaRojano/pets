@@ -25,14 +25,34 @@
 <div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
 	<h1 style="text-align: center; background-color:#d6eaf8">Patient HPO profiles by cluster.</h1>
 		<%= table(id: :clusters, header: true, border: 2, row_names: false, text: true, 
-			cell_align: %w( center )) do |data|
-				data.each do |element|
+			cell_align: %w( center ), styled: 'dt', attrib: {'class' => 'table'}) do |data|
+				patient_list = []
+				data.each do |element| # Cluster
+					clID, patient_number, patient_ids, hpo_codes, hpo_names = element
+					# TODO: mostrar registro por paciente
 					#STDERR.puts element.inspect
-					element[2] = element[2].map{|patID| "<p>#{patID}</p>" }.join("\n")
-					element[3] = element[3].map{|profile| "<p>#{profile.map{|hpo_code| get_hpo_link(hpo_code)}.join(', ')}</p>" }.join("\n")
-					element[4] = element[4].map{|transl_profile| "<p>#{transl_profile.join(', ')}</p>"}.join("\n")
+					patient_ids.each_with_index do |patID, i|
+						patient_record = [clID, patient_number]
+						patient_record << patID
+						patient_record << hpo_codes[i].map{|hpo_code| get_hpo_link(hpo_code)}.join(', ')
+						patient_record << hpo_names[i].join(', ')
+						patient_list << patient_record
+					end
 				end
+				data.clear
+				data.concat(patient_list) 
 				data.unshift(["Cluster ID","Patients in Cluster","Patient IDs", "HPO codes", "Phenotypes"])				
 			end
 		%>
+</div>
+
+<div style="width: 90%; background-color:#ecf0f1; margin: 0 auto;"> 
+	<h1 style="text-align: center; background-color:#d6eaf8"> Cluster detailed view.</h1>
+	<%
+		@hash_vars[:sim_mat4cluster].each do |clID, sim_matrix|
+			@hash_vars[:sim_matrix] = sim_matrix %>
+			<%= heatmap(id: :sim_matrix, header: true, row_names: true, title: "Cluster #{clID}" )%>
+		<% end
+	%>
+
 </div>

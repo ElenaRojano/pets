@@ -113,7 +113,7 @@ class Cohort
 		term_count = Hash.new(0)
 		each_profile do |id, prof|
 			prof.each do |term|
-				general_profile[prof] += 1
+				term_count[term] += 1
 			end
 		end
 		records = @profiles.length

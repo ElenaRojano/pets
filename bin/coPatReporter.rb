@@ -42,6 +42,11 @@ OptionParser.new do |opts|
     options[:id_col] = data
   end
 
+  options[:detailed_clusters] = false
+  opts.on("-D", "--detailed_clusters", "Show detiled cluster comparation using heatmaps. Default false") do 
+    options[:detailed_clusters] = true
+  end
+
   options[:excluded_hpo] = nil
   opts.on("-E", "--excluded_hpo PATH", "List of HPO phenotypes to exclude (low informative)") do |excluded_hpo|
     options[:excluded_hpo] = excluded_hpo

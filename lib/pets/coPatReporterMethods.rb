@@ -231,13 +231,30 @@ def get_semantic_similarity_clustering(options, patient_data, temp_folder)
     write_patient_hpo_stat(get_cluster_metadata(clusters_info), clusters_distribution_filename)
     out_file = File.join(temp_folder, ['clusters_distribution', method_name].join('_'))
     system_call(EXTERNAL_CODE, 'xyplot_graph.R', "-d #{clusters_distribution_filename} -o #{out_file} -x PatientsNumber -y HPOAverage") if !File.exists?(out_file)
+    sim_mat4cluster = {}
+    if options[:detailed_clusters]
+      clusters_codes.each do |cluster|
+        cluster_cohort = Cohort.new
+        clID, patient_number, patient_ids, hpo_codes = cluster
+        patient_ids.each_with_index {|patID, i| cluster_cohort.add_record([patID, hpo_codes[i], []])}
+        cluster_profiles = cluster_cohort.profiles
+        ref_profile = cluster_cohort.get_general_profile
+        hpo.load_profiles({ref: ref_profile}, reset_stored: true)    
+        similarities = hpo.compare_profiles(external_profiles: cluster_profiles, sim_type: :lin, bidirectional: false)
+        candidate_sim_matrix, candidates, candidates_ids = get_similarity_matrix(ref_profile, similarities[:ref], cluster_profiles, hpo, 100, 100)
+        candidate_sim_matrix.unshift(['HP'] + candidates_ids)
+        sim_mat4cluster[clID] = candidate_sim_matrix
+      end
+    end
+
+
     clusters = translate_codes(clusters_codes, hpo)
-    
     container = {
       :temp_folder => temp_folder,
       :cluster_name => method_name,
       :clusters => clusters,
-      :hpo => hpo
+      :hpo => hpo,
+      :sim_mat4cluster => sim_mat4cluster
      }
 
     report = Report_html.new(container, 'Patient clusters report')
