@@ -1,5 +1,7 @@
 # PETS
 
+DEPRECATED PROJECT. MIGRATED TO [python PETS](https://github.com/seoanezonjic/pets)
+
 PETS (Patient Exploration Tools Suite) include three different tools for the analysis of cohorts of patients with pathological phenotypes described in terms of the Human Phenotype Ontology (HPO) and the position their genomic variants clinically determined.
 
 It can (1) determine the quality of information within a patient cohort with Cohort Analyzer (coPatReporter.rb); (2) associate genomic regions with their pathological phenotypes based on the cohort data with Reg2Phen (reg2phen.rb), and (3) predict the possible genetic variants that cause the clinically observed pathological phenotypes using phenotype-genotype association values with Phen2Reg (phen2reg.rb). 
